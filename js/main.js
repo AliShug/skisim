@@ -1,21 +1,79 @@
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+var orbitControls = new THREE.OrbitControls(camera);
+orbitControls.enableDamping = true;
+orbitControls.rotateSpeed = 0.7;
+
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMapEnabled = true;
+renderer.shadowMapType = THREE.PCFSoftShadowMap;
+renderer.shadowMapCullFace = THREE.CullFaceBack;
+renderer.physicallyCorrectLights = true;
+
 document.body.appendChild(renderer.domElement);
 
-// Create somthing
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.addEventListener('resize', onResize, false);
+
 var geometry = new THREE.BoxGeometry(1, 1, 1);
-var material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+var material = new THREE.MeshStandardMaterial({ color: 0xffa0a0 });
+var ambient = new THREE.AmbientLight(0xffffff, 0.3);
+var sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(40,35,-45);
+sun.castShadow = true;
+var shadowMapRadius = 50;
+sun.shadowCameraLeft = -shadowMapRadius;
+sun.shadowCameraRight = shadowMapRadius;
+sun.shadowCameraTop = shadowMapRadius;
+sun.shadowCameraBottom = -shadowMapRadius;
+sun.shadow.mapSize.width = 8192;
+sun.shadow.mapSize.height = 8192;
+sun.shadow.radius = 1;
+sun.shadowBias = -0.00005;
+
+scene.add(sun);
+scene.add(ambient);
+
+var testLight = new THREE.PointLight(0x3030ff, 1.0, 10, 2);
+testLight.position.set(0,2,4);
+scene.add(testLight);
+
+camera.position.set(20, 20, 20);
+orbitControls.update();
+
 var cube = new THREE.Mesh(geometry, material);
+cube.position.set(0, 6, 0);
+cube.castShadow = true;
+cube.receiveShadow = true;
 scene.add(cube);
 
-camera.position.z = 5;
+// Terrain Mesh
+var loader = new THREE.JSONLoader();
+loader.load(
+  'assets/terrain.json',
+  function (geometry, materials) {
+    var material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+    var terrain = new THREE.Mesh(geometry, material);
+    terrain.castShadow = true;
+    terrain.receiveShadow = true;
+    scene.add(terrain);
+  }
+);
 
+// Main loop
 function animate() {
   requestAnimationFrame(animate);
-  cube.rotation.z += 0.1;
-  cube.rotation.y += 0.1;
+
+  cube.rotation.z += 0.001;
+  cube.rotation.y += 0.001;
+  orbitControls.update();
+
   renderer.render(scene, camera);
 }
 
