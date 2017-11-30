@@ -6,10 +6,11 @@ orbitControls.rotateSpeed = 0.7;
 
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMapEnabled = true;
-renderer.shadowMapType = THREE.PCFSoftShadowMap;
-renderer.shadowMapCullFace = THREE.CullFaceBack;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.renderReverseSided = false;
 renderer.physicallyCorrectLights = true;
+renderer.toneMapping = THREE.Uncharted2ToneMapping;
 
 document.body.appendChild(renderer.domElement);
 
@@ -23,24 +24,26 @@ window.addEventListener('resize', onResize, false);
 
 var geometry = new THREE.BoxGeometry(1, 1, 1);
 var material = new THREE.MeshStandardMaterial({ color: 0xffa0a0 });
-var ambient = new THREE.AmbientLight(0xffffff, 0.3);
-var sun = new THREE.DirectionalLight(0xffffff, 1.0);
+var ambient = new THREE.AmbientLight(0xffffff, 1.2);
+var sun = new THREE.DirectionalLight(0xffffff, 5.0);
 sun.position.set(40,35,-45);
 sun.castShadow = true;
 var shadowMapRadius = 50;
-sun.shadowCameraLeft = -shadowMapRadius;
-sun.shadowCameraRight = shadowMapRadius;
-sun.shadowCameraTop = shadowMapRadius;
-sun.shadowCameraBottom = -shadowMapRadius;
+sun.shadow.camera.left = -shadowMapRadius;
+sun.shadow.camera.right = shadowMapRadius;
+sun.shadow.camera.top = shadowMapRadius;
+sun.shadow.camera.bottom = -shadowMapRadius;
+sun.shadow.camera.far = 150;
+sun.shadow.camera.near = 20;
 sun.shadow.mapSize.width = 8192;
 sun.shadow.mapSize.height = 8192;
 sun.shadow.radius = 1;
-sun.shadowBias = -0.00005;
+sun.shadow.bias = -0.0001;
 
 scene.add(sun);
 scene.add(ambient);
 
-var testLight = new THREE.PointLight(0x3030ff, 1.0, 10, 2);
+var testLight = new THREE.PointLight(0x3030ff, 8.0, 10, 2);
 testLight.position.set(0,2,4);
 scene.add(testLight);
 
