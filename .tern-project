@@ -5,6 +5,8 @@
     ],
     "loadEagerly": [
         "js/three.js",
-        "js/OrbitControls.js"
+        "js/OrbitControls.js",
+        "js/ammo.js",
+        "js/dat.gui.js"
     ]
 }
