@@ -38,7 +38,7 @@ sun.shadow.camera.near = 20;
 sun.shadow.mapSize.width = 8192;
 sun.shadow.mapSize.height = 8192;
 sun.shadow.radius = 1;
-sun.shadow.bias = -0.0001;
+sun.shadow.bias = -0.001;
 
 scene.add(sun);
 scene.add(ambient);
@@ -66,6 +66,8 @@ loader.load(
     terrain.castShadow = true;
     terrain.receiveShadow = true;
     scene.add(terrain);
+
+    physicsWorker.postMessage({terrain: geometry});
   }
 );
 
@@ -73,11 +75,30 @@ loader.load(
 function animate() {
   requestAnimationFrame(animate);
 
-  cube.rotation.z += 0.001;
-  cube.rotation.y += 0.001;
+  cube.rotation.z += 0.01;
+  cube.rotation.y += 0.01;
   orbitControls.update();
 
   renderer.render(scene, camera);
 }
 
-animate();
+// Physics setup
+var physicsWorker = new Worker('js/physics-worker.js');
+var running = false;
+physicsWorker.onmessage = function(event) {
+  var data = event.data;
+  if (data.debug) {
+    console.log(data.debug);
+    return;
+  }
+  if (data.objects.length != 1) return;
+  var ammoObj = data.objects[0];
+  var threeObj = cube;
+  threeObj.position.set(ammoObj[0], ammoObj[1], ammoObj[2]);
+  threeObj.quaternion.set(ammoObj[3], ammoObj[4], ammoObj[5], ammoObj[6]);
+  // Start animating when the physics thread is ready
+  if (!running) {
+    running = true;
+    animate();
+  }
+};

@@ -1,3 +1,5 @@
+importScripts('ammo.js');
+
 Ammo().then(function(Ammo) {
   // Bullet code
   var collisionConfig = new Ammo.btDefaultCollisionConfiguration();
@@ -11,29 +13,42 @@ Ammo().then(function(Ammo) {
     collisionConfig);
   dynamicsWorld.setGravity(new Ammo.btVector3(0, -9.81, 0));
 
-  var groundShape = new btBoxShape(new Ammo.btVector3(50, 50, 50));
+  var groundShape = null;
 
   var bodies = [];
 
   var groundTransform = new Ammo.btTransform();
   groundTransform.setIdentity();
-  groundTransform.setOrigin(new Ammo.btVector3(0, -56, 0));
 
-  (function () {
-    var mass = 0;
-    var localInertia = new Ammo.btVector3(0,0,0);
-    var myMotionState = new Ammo.btDefaultMotionState(groundTransform);
-    var rbInfo = new Ammo.btRigidBodyConstructionInfo(0, myMotionState, groundShape, localInertia);
-    var body = new Ammo.btRigidBody(rbInfo);
-    dynamicsWorld.addRigidBody(body);
-    bodies.push(body);
-  })();
+  var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(0.5, 0.5, 0.5));
 
-  var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(1, 1, 1));
+  function startUp(terrainMesh) {
+    // Register the terrain's geometry with the physics engine
+    (function () {
+      var groundShapeMesh = new Ammo.btTriangleMesh();
+      for (var i = 0; i < terrainMesh.faces.length; i++) {
+        var face = terrainMesh.faces[i];
+        var v1 = terrainMesh.vertices[face.a];
+        var a = new Ammo.btVector3(v1.x, v1.y, v1.z);
+        var v2 = terrainMesh.vertices[face.b];
+        var b = new Ammo.btVector3(v2.x, v2.y, v2.z);
+        var v3 = terrainMesh.vertices[face.c];
+        var c = new Ammo.btVector3(v3.x, v3.y, v3.z);
+        groundShapeMesh.addTriangle(a, b, c, true);
+      }
+      groundShape = new Ammo.btBvhTriangleMeshShape(groundShapeMesh, true);
+      var mass = 0;
+      var localInertia = new Ammo.btVector3(0,0,0);
+      var myMotionState = new Ammo.btDefaultMotionState(groundTransform);
+      var rbInfo = new Ammo.btRigidBodyConstructionInfo(0, myMotionState, groundShape, localInertia);
+      var body = new Ammo.btRigidBody(rbInfo);
+      dynamicsWorld.addRigidBody(body);
+      bodies.push(body);
+    })();
 
-  function startUp() {
     var startTransform = new Ammo.btTransform();
     startTransform.setIdentity();
+    startTransform.setOrigin(new Ammo.btVector3(4, 5, 0));
     var mass = 1;
     var localInertia = new Ammo.btVector3(0, 0, 0);
     boxShape.calculateLocalInertia(mass, localInertia);
@@ -72,4 +87,16 @@ Ammo().then(function(Ammo) {
     data.objects.push(box);
     postMessage(data);
   }
+
+  var interval = null;
+
+  onmessage = function(event) {
+    startUp(event.data.terrain);
+    function mainLoop() {
+      simulate(1000/60);
+    }
+
+    if (interval) clearInterval(interval);
+    interval = setInterval(mainLoop, 1000/60);
+  };
 });
