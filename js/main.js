@@ -1,3 +1,5 @@
+/*jshint esversion:6*/
+
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
 var orbitControls = new THREE.OrbitControls(camera);
@@ -22,8 +24,6 @@ function onResize() {
 
 window.addEventListener('resize', onResize, false);
 
-var geometry = new THREE.BoxGeometry(1, 1, 1);
-var material = new THREE.MeshStandardMaterial({ color: 0xffa0a0 });
 var ambient = new THREE.AmbientLight(0xffffff, 1.2);
 var sun = new THREE.DirectionalLight(0xffffff, 5.0);
 sun.position.set(40,35,-45);
@@ -50,12 +50,6 @@ scene.add(testLight);
 camera.position.set(20, 20, 20);
 orbitControls.update();
 
-var cube = new THREE.Mesh(geometry, material);
-cube.position.set(0, 6, 0);
-cube.castShadow = true;
-cube.receiveShadow = true;
-scene.add(cube);
-
 // Terrain Mesh
 var loader = new THREE.JSONLoader();
 loader.load(
@@ -67,7 +61,7 @@ loader.load(
     terrain.receiveShadow = true;
     scene.add(terrain);
 
-    physicsWorker.postMessage({terrain: geometry});
+    physicsWorker.postMessage({type: "start-up", terrain: geometry});
   }
 );
 
@@ -75,30 +69,56 @@ loader.load(
 function animate() {
   requestAnimationFrame(animate);
 
-  cube.rotation.z += 0.01;
-  cube.rotation.y += 0.01;
   orbitControls.update();
 
   renderer.render(scene, camera);
 }
 
 // Physics setup
+// Physics objects are generated in the worker thread!
+var shapes = {};
 var physicsWorker = new Worker('js/physics-worker.js');
 var running = false;
 physicsWorker.onmessage = function(event) {
   var data = event.data;
-  if (data.debug) {
-    console.log(data.debug);
-    return;
+  if (data.type == "scene-description") {
+    // Sync up with the physics world
+    console.log(data.bodies);
+    for (var i = 0; i < data.bodies.length; i++) {
+      var {id, x, y, z, w, d, h, ox, oy, oz, ow} = data.bodies[i];
+      // Create unique objects, update even if not unique
+      var shape = null;
+      if (!(id in shapes)) {
+        var geometry = new THREE.BoxGeometry(w, h, d);
+        var material = new THREE.MeshStandardMaterial({ color: 0xffa0a0 });
+        shape = new THREE.Mesh(geometry, material);
+        scene.add(shape);
+      }
+      else {
+        shape = shapes[id];
+      }
+      shape.position.set(x, y, z);
+      shape.quaternion.set(ox, oy, oz, ow);
+      shape.castShadow = true;
+      shape.receiveShadow = true;
+      shapes[id] = shape;
+    }
   }
-  if (data.objects.length != 1) return;
-  var ammoObj = data.objects[0];
-  var threeObj = cube;
-  threeObj.position.set(ammoObj[0], ammoObj[1], ammoObj[2]);
-  threeObj.quaternion.set(ammoObj[3], ammoObj[4], ammoObj[5], ammoObj[6]);
-  // Start animating when the physics thread is ready
-  if (!running) {
-    running = true;
-    animate();
+  else {
+    if (data.debug) {
+      console.log(data.debug);
+      return;
+    }
+    for (var id2 in data.objects) {
+      var ammoObj = data.objects[id2];
+      var threeObj = shapes[id2];
+      threeObj.position.set(ammoObj[0], ammoObj[1], ammoObj[2]);
+      threeObj.quaternion.set(ammoObj[3], ammoObj[4], ammoObj[5], ammoObj[6]);
+    }
+    // Start animating when the physics thread is ready
+    if (!running) {
+      running = true;
+      animate();
+    }
   }
 };
