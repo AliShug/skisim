@@ -42,12 +42,15 @@ Ammo().then(function(Ammo) {
     bodies.ground = body;
   }
 
-  function createBox(params) {
-    var {id, x, y, z, w = 1, d = 1, h = 1, yaw = 0, pitch = 0, roll = 0} = params;
+  function createBox(params, transform = null) {
+    var {id, x=0, y=0, z=0, w=1, d=1, h=1, yaw=0, pitch=0, roll=0} = params;
     var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(w/2, h/2, d/2));
     var rotation = new Ammo.btQuaternion();
     rotation.setEulerZYX(yaw, pitch, roll);
     var translation = new Ammo.btVector3(x, y, z);
+    if (transform !== null) {
+      translation = translation.op_add(transform.getOrigin());
+    }
     var startTransform = new Ammo.btTransform(rotation, translation);
     var mass = 1;
     var localInertia = new Ammo.btVector3(0, 0, 0);
@@ -70,13 +73,93 @@ Ammo().then(function(Ammo) {
     loadTerrain(terrainMesh);
 
     var boxes = [];
-    for (var i = 0; i < 10; i++) {
-      boxes.push(createBox({id: i,
-        x: 0, y: 5 + i, z: 4,
-        w: 2, d: 2, h: 0.5,
-        roll: 0.5
-      }));
-    }
+
+    var rootTransform = new Ammo.btTransform();
+    rootTransform.setIdentity();
+    rootTransform.setOrigin(new Ammo.btVector3(0, 5, 0));
+
+    // Humanish character
+    var h = 1.8;
+    var u = h / 7.5;
+    var shoulderRadial = u * 0.9;
+    var shoulderHeight = h - u * (4/3);
+    var armUpperLength = u * (4/3);
+    var armLowerLength = u * 1.2;
+    var handLength = u * 0.8;
+    boxes.push(createBox({
+      id: "head", y: h-u/2,
+      w: u*0.8, d: u*0.8, h: u
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "chest", y: h-u*2,
+      w: u*1.3, d: u*0.75, h: u*1.5
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "gut", y: h-u*3.1,
+      w: u*1.1, d: u*0.7, h: u
+    }, rootTransform));
+    // legs
+    boxes.push(createBox({
+      id: "l_leg_u", x: -u*0.7, y: u*2.9,
+      w: u*0.6, d: u*0.6, h: u*1.75
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "l_leg_l", x: -u*0.7, y: u*1.1,
+      w: u*0.5, d: u*0.5, h: u*1.75
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "l_foot", x: -u*0.7, y: u/6, z:-u/5,
+      w: u*0.6, d: u, h: u/3
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "r_leg_u", x: u*0.7, y: u*2.9,
+      w: u*0.6, d: u*0.6, h: u*1.75
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "r_leg_l", x: u*0.7, y: u*1.1,
+      w: u*0.5, d: u*0.5, h: u*1.75
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "r_foot", x: u*0.7, y: u/6, z:-u/5,
+      w: u*0.6, d: u, h: u/3
+    }, rootTransform));
+    // arms
+    boxes.push(createBox({
+      id: "l_arm_u",
+      x: -shoulderRadial - armUpperLength/2,
+      y: shoulderHeight,
+      w: armUpperLength, d: u*0.4, h: u*0.4
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "l_arm_l",
+      x: -shoulderRadial - armUpperLength - armLowerLength/2,
+      y: shoulderHeight,
+      w: armLowerLength, d: u*0.35, h: u*0.4
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "l_hand",
+      x: -shoulderRadial - armUpperLength - armLowerLength - handLength/2,
+      y: shoulderHeight,
+      w: handLength, d: u*0.2, h: u*0.5
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "r_arm_u",
+      x: shoulderRadial + armUpperLength/2,
+      y: shoulderHeight,
+      w: armUpperLength, d: u*0.4, h: u*0.4
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "r_arm_l",
+      x: shoulderRadial + armUpperLength + armLowerLength/2,
+      y: shoulderHeight,
+      w: armLowerLength, d: u*0.35, h: u*0.4
+    }, rootTransform));
+    boxes.push(createBox({
+      id: "r_hand",
+      x: shoulderRadial + armUpperLength + armLowerLength + handLength/2,
+      y: shoulderHeight,
+      w: handLength, d: u*0.2, h: u*0.5
+    }, rootTransform));
 
     // Register physics objects with the renderer
     postMessage({
@@ -102,9 +185,10 @@ Ammo().then(function(Ammo) {
   }
 
   function simulate(dt) {
-    dt = dt || 1;
-    dynamicsWorld.stepSimulation(dt, 2);
+    dynamicsWorld.stepSimulation(dt, 2, dt);
+  }
 
+  function updateView() {
     var data = {objects: {}};
     for (var id in dynamicBodies) {
       var props = [];
@@ -115,7 +199,11 @@ Ammo().then(function(Ammo) {
   }
 
   function mainLoop() {
-    simulate(1000/60);
+    for (var i = 0; i < 4; i++) {
+      simulate(1/200);
+    }
+    updateView();
+    // clearInterval(interval); // UNCOMMENT TO PAUSE ON START
   }
 
   var interval = null;

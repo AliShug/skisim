@@ -47,7 +47,8 @@ var testLight = new THREE.PointLight(0x3030ff, 8.0, 10, 2);
 testLight.position.set(0,2,4);
 scene.add(testLight);
 
-camera.position.set(20, 20, 20);
+camera.position.set(0.5, 6, -5);
+orbitControls.target.set(0, 4, 0);
 orbitControls.update();
 
 // Terrain Mesh
