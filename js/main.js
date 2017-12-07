@@ -51,6 +51,20 @@ camera.position.set(0.5, 6, -5);
 orbitControls.target.set(0, 4, 0);
 orbitControls.update();
 
+// User interface
+var controlData = {
+  reset: function () {
+    physicsWorker.postMessage({type: "reset"});
+  },
+  toggle: function () {
+    physicsWorker.postMessage({type: "toggle"});
+  }
+};
+var gui = new dat.GUI();
+gui.remember(controlData);
+gui.add(controlData, 'reset');
+gui.add(controlData, 'toggle');
+
 // Terrain Mesh
 var loader = new THREE.JSONLoader();
 loader.load(

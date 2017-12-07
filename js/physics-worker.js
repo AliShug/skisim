@@ -4,20 +4,41 @@ importScripts('ammo.js');
 
 Ammo().then(function(Ammo) {
   // Bullet code
-  var collisionConfig = new Ammo.btDefaultCollisionConfiguration();
-  var dispatcher = new Ammo.btCollisionDispatcher(collisionConfig);
-  var overlappingPairCache = new Ammo.btDbvtBroadphase();
-  var solver = new Ammo.btSequentialImpulseConstraintSolver();
-  var dynamicsWorld = new Ammo.btDiscreteDynamicsWorld(
-    dispatcher,
-    overlappingPairCache,
-    solver,
-    collisionConfig);
-  dynamicsWorld.setGravity(new Ammo.btVector3(0, -9.81, 0));
-
+  var collisionConfig =null;
+  var dispatcher = null;
+  var overlappingPairCache = null;
+  var solver = null;
+  var dynamicsWorld = null;
   var bodies = {};
   var dynamicBodies = {};
   var joints = {};
+
+  function resetPhysics() {
+    if (dynamicsWorld !== null) {
+      for (var id in dynamicBodies) {
+        Ammo.destroy(dynamicBodies[id]);
+      }
+      Ammo.destroy(dynamicsWorld);
+      Ammo.destroy(solver);
+      Ammo.destroy(overlappingPairCache);
+      Ammo.destroy(dispatcher);
+      Ammo.destroy(collisionConfig);
+    }
+    collisionConfig = new Ammo.btDefaultCollisionConfiguration();
+    dispatcher = new Ammo.btCollisionDispatcher(collisionConfig);
+    overlappingPairCache = new Ammo.btDbvtBroadphase();
+    solver = new Ammo.btSequentialImpulseConstraintSolver();
+    dynamicsWorld = new Ammo.btDiscreteDynamicsWorld(
+      dispatcher,
+      overlappingPairCache,
+      solver,
+      collisionConfig);
+    dynamicsWorld.setGravity(new Ammo.btVector3(0, -9.81, 0));
+
+    bodies = {};
+    dynamicBodies = {};
+    joints = {};
+  }
 
   function loadTerrain(terrainMesh) {
     var groundTransform = new Ammo.btTransform();
@@ -70,12 +91,22 @@ Ammo().then(function(Ammo) {
   }
 
   function pinBodies(bodyA, bodyB, pivot, transform = null) {
-    var constraint = new Ammo.btFixedConstraint(bodyA, bodyB, new Ammo.btTransform(), new Ammo.btTransform());
+    // var constraint = new Ammo.btFixedConstraint(bodyA, bodyB, new Ammo.btTransform(), new Ammo.btTransform());
   }
 
-  function startUp(terrainMesh) {
-    // Register the terrain's geometry with the physics engine
-    loadTerrain(terrainMesh);
+  function startUp(terrainMesh = null) {
+    if (terrainMesh === null) {
+      dynamicsWorld.removeRigidBody(bodies.ground);
+      var ground = bodies.ground;
+      resetPhysics();
+      bodies.ground = ground;
+      dynamicsWorld.addRigidBody(ground);
+    }
+    else {
+      // Register the terrain's geometry with the physics engine
+      resetPhysics();
+      loadTerrain(terrainMesh);
+    }
 
     var boxes = [];
 
@@ -293,8 +324,13 @@ Ammo().then(function(Ammo) {
 
   onmessage = function(event) {
     var data = event.data;
-    if (data.type == "start-up") {
-      startUp(event.data.terrain);
+    if (data.type == "start-up" || data.type == "reset") {
+      if ("terrain" in event.data) {
+        startUp(event.data.terrain);
+      }
+      else {
+        startUp();
+      }
 
       if (interval) clearInterval(interval);
       interval = setInterval(mainLoop, 1000/60);
