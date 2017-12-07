@@ -17,6 +17,7 @@ Ammo().then(function(Ammo) {
 
   var bodies = {};
   var dynamicBodies = {};
+  var joints = {};
 
   function loadTerrain(terrainMesh) {
     var groundTransform = new Ammo.btTransform();
@@ -61,11 +62,15 @@ Ammo().then(function(Ammo) {
     dynamicsWorld.addRigidBody(body);
     bodies[id] = body;
     dynamicBodies[id] = body;
-
+    body.forceActivationState(4); // disable deactivation
     return {
       id, x, y, z, w, d, h,
       ox: rotation.x(), oy: rotation.y(), oz: rotation.z(), ow: rotation.w()
     };
+  }
+
+  function pinBodies(bodyA, bodyB, pivot, transform = null) {
+    var constraint = new Ammo.btFixedConstraint(bodyA, bodyB, new Ammo.btTransform(), new Ammo.btTransform());
   }
 
   function startUp(terrainMesh) {
@@ -86,13 +91,17 @@ Ammo().then(function(Ammo) {
     var armUpperLength = u * (4/3);
     var armLowerLength = u * 1.2;
     var handLength = u * 0.8;
+    var chestLength = u * 1.5;
+    var chestHeight = h - u * 2;
+    var headHeight = h - u / 2;
+    var neckLength = (h - u) - shoulderHeight;
     boxes.push(createBox({
-      id: "head", y: h-u/2,
+      id: "head", y: headHeight,
       w: u*0.8, d: u*0.8, h: u
     }, rootTransform));
     boxes.push(createBox({
-      id: "chest", y: h-u*2,
-      w: u*1.3, d: u*0.75, h: u*1.5
+      id: "chest", y: chestHeight,
+      w: u*1.3, d: u*0.75, h: chestLength
     }, rootTransform));
     boxes.push(createBox({
       id: "gut", y: h-u*3.1,
@@ -160,6 +169,80 @@ Ammo().then(function(Ammo) {
       y: shoulderHeight,
       w: handLength, d: u*0.2, h: u*0.5
     }, rootTransform));
+
+    // TODO: remove (testing)
+    bodies.chest.setMassProps(0, new Ammo.btVector3(0,0,0));
+    // Joints
+    var shoulderPivotA = new Ammo.btVector3(-shoulderRadial, shoulderHeight-chestHeight, 0);
+    var shoulderPivotB = new Ammo.btVector3(armUpperLength / 2, 0, 0);
+    var shoulderTransformA = new Ammo.btTransform();
+    shoulderTransformA.setIdentity();
+    shoulderTransformA.setOrigin(shoulderPivotA);
+    var shoulderTransformB = new Ammo.btTransform();
+    shoulderTransformB.setIdentity();
+    shoulderTransformB.setOrigin(shoulderPivotB);
+    var shoulder = new Ammo.btConeTwistConstraint(
+      bodies.chest, bodies.l_arm_u,
+      shoulderTransformA, shoulderTransformB
+    );
+    //shoulder.setMotorTarget();
+    dynamicsWorld.addConstraint(shoulder, true);
+    joints.shoulder = shoulder;
+
+    var elbowPivotA = new Ammo.btVector3(armLowerLength / 2, 0, 0);
+    var elbowPivotB = new Ammo.btVector3(-armUpperLength / 2, 0, 0);
+    var elbowAxis = new Ammo.btVector3(0, 0, 1);
+    var elbow = new Ammo.btHingeConstraint(
+      bodies.l_arm_l, bodies.l_arm_u,
+      elbowPivotA, elbowPivotB, elbowAxis, elbowAxis
+    );
+    elbow.enableMotor(true);
+    elbow.setMaxMotorImpulse(0.005);
+    // Set motor target angle difference to reach in time dt
+    elbow.setMotorTarget(Math.PI, 1);
+    //elbow.setLimit(-Math.PI/4, Math.PI/4, 0.9, 0.1, 1.0);
+    dynamicsWorld.addConstraint(elbow, true);
+    joints.elbow = elbow;
+
+    var spinePivotA = new Ammo.btVector3(0, -chestLength / 2, u/6);
+    var spinePivotB = new Ammo.btVector3(0, u / 2, u/6);
+    var spineAxis = new Ammo.btVector3(1, 0, 0);
+    var spine = new Ammo.btHingeConstraint(
+      bodies.chest, bodies.gut,
+      spinePivotA, spinePivotB, spineAxis, spineAxis
+    );
+    // spine.enableMotor(true);
+    // spine.setMaxMotorImpulse(0.005);
+    // Set motor target angle difference to reach in time dt
+    // spine.setMotorTarget(Math.PI, 1);
+    // +ve = backward lean
+    spine.setLimit(-Math.PI/4, Math.PI/6, 0.9, 0.1, 1.0);
+    dynamicsWorld.addConstraint(spine, true);
+    joints.spine = spine;
+
+    var neckPivotA = new Ammo.btVector3(0, chestLength / 2 + neckLength / 2, u/6);
+    var neckPivotB = new Ammo.btVector3(0, -u / 2 - neckLength / 2, u/6);
+    var neckAxis = new Ammo.btVector3(1, 0, 0);
+    var neck = new Ammo.btHingeConstraint(
+      bodies.chest, bodies.head,
+      neckPivotA, neckPivotB, neckAxis, neckAxis
+    );
+    // neck.enableMotor(true);
+    // neck.setMaxMotorImpulse(0.005);
+    // Set motor target angle difference to reach in time dt
+    // neck.setMotorTarget(0, 1);
+    // +ve = backwards lean
+    neck.setLimit(-Math.PI/6, Math.PI/6, 0.9, 0.1, 1.0);
+    dynamicsWorld.addConstraint(neck, true);
+    joints.neck = neck;
+
+    // pin hands to lower arms
+    pinBodies(bodies.l_hand, bodies.l_arm_l,
+      new Ammo.btVector3(
+        -shoulderRadial - armUpperLength - armLowerLength,
+        shoulderHeight, 0
+      ), rootTransform
+    );
 
     // Register physics objects with the renderer
     postMessage({
