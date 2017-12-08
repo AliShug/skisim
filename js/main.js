@@ -16,6 +16,14 @@ class PhysicsDragController {
     domElement.addEventListener("mousedown", e => this.onClick(e));
     document.addEventListener("mouseup", e => this.onRelease(e));
     document.addEventListener("mousemove", e => this.onMouseMove(e));
+
+    var geometry = new THREE.SphereGeometry(0.03, 32, 32);
+    var material = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+    this.debugObject = new THREE.Mesh(geometry, material);
+    this.debugObject.castShadow = true;
+    this.debugObject.receiveShadow = true;
+    this.debugObject.visible = false;
+    scene.add(this.debugObject);
   }
 
   startDrag(object, point) {
@@ -30,7 +38,8 @@ class PhysicsDragController {
     invMat.getInverse(object.matrix);
     this.dragLocalAnchor.copy(point.applyMatrix4(invMat));
     this.dragStarted = true;
-    debugObject.position.copy(point);
+    this.debugObject.position.copy(point);
+    this.debugObject.visible = true;
   }
 
   updateDrag() {
@@ -48,7 +57,7 @@ class PhysicsDragController {
     var t = p0l0.dot(z) / z.dot(l);
     var point = l0.clone();
     point.addScaledVector(l, t);
-    debugObject.position.copy(point);
+    this.debugObject.position.copy(point);
     // calculate the force to apply
     var shape = shapes[this.targetObjectId];
     var anchorPosition = this.dragLocalAnchor.clone();
@@ -69,6 +78,7 @@ class PhysicsDragController {
       type: "drag-force",
       object: null
     });
+    this.debugObject.visible = false;
   }
 
   onClick(e) {
@@ -163,16 +173,6 @@ camera.position.set(0.5, 7, -3);
 orbitControls.target.set(0, 6, 0);
 orbitControls.update();
 
-var debugObject = null;
-(function () {
-  var geometry = new THREE.SphereGeometry(0.03, 32, 32);
-  var material = new THREE.MeshStandardMaterial({ color: 0xffff00 });
-  debugObject = new THREE.Mesh(geometry, material);
-  debugObject.castShadow = true;
-  debugObject.receiveShadow = true;
-  scene.add(debugObject);
-})();
-
 // User interface
 var controlData = {
   reset: function () {
@@ -195,7 +195,7 @@ gui.add(controlData, 'Drag Strength', 0.0, 50.0).onChange(function () {
 gui.add(controlData, 'l_shoulder_x', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_y', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_z', -Math.PI, Math.PI);
-gui.add(controlData, 'l_arm', -Math.PI, Math.PI).onChange(function () {
+gui.add(controlData, 'l_arm', -0.9*Math.PI, 0.9*Math.PI).onChange(function () {
   physicsWorker.postMessage({
     type: "control-update",
     controls: {l_arm: controlData.l_arm}
