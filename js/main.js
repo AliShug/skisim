@@ -1,12 +1,118 @@
 /*jshint esversion:6*/
 
+class PhysicsDragController {
+  constructor(domElement, cameraControls, strength=1.0) {
+    this.mouse = new THREE.Vector2();
+    this.targetObjectId = null;
+    this.raycaster = new THREE.Raycaster();
+    this.domElement = domElement;
+    this.cameraControls = cameraControls;
+    this.dragStarted = false;
+    this.dragStartPosition = new THREE.Vector3(0, 0, 0);
+    this.dragLocalAnchor = new THREE.Vector3(0, 0, 0);
+    this.screenOffset = new THREE.Vector2();
+    this.strength = strength;
+
+    domElement.addEventListener("mousedown", e => this.onClick(e));
+    document.addEventListener("mouseup", e => this.onRelease(e));
+    document.addEventListener("mousemove", e => this.onMouseMove(e));
+  }
+
+  startDrag(object, point) {
+    for (var id in shapes) {
+      if (shapes[id] === object) {
+        this.targetObjectId = id;
+      }
+    }
+    // console.log(`Hit ${this.targetObjectId}`);
+    this.dragStartPosition.copy(point);
+    var invMat = new THREE.Matrix4();
+    invMat.getInverse(object.matrix);
+    this.dragLocalAnchor.copy(point.applyMatrix4(invMat));
+    this.dragStarted = true;
+    debugObject.position.copy(point);
+  }
+
+  updateDrag() {
+    if (!this.dragStarted || this.targetObjectId === null) return;
+    this.raycaster.setFromCamera(this.mouse, camera);
+    // ray-plane intersection
+    var l = this.raycaster.ray.direction;
+    var l0 = this.raycaster.ray.origin;
+    var x = new THREE.Vector3();
+    var y = new THREE.Vector3();
+    var z = new THREE.Vector3();
+    camera.matrix.extractBasis(x, y, z);
+    var p0l0 = this.dragStartPosition.clone();
+    p0l0.sub(l0);
+    var t = p0l0.dot(z) / z.dot(l);
+    var point = l0.clone();
+    point.addScaledVector(l, t);
+    debugObject.position.copy(point);
+    // calculate the force to apply
+    var shape = shapes[this.targetObjectId];
+    var anchorPosition = this.dragLocalAnchor.clone();
+    anchorPosition.applyMatrix4(shape.matrix);
+    var force = new THREE.Vector3();
+    force.subVectors(point, anchorPosition);
+    physicsWorker.postMessage({
+      type: "drag-force",
+      object: this.targetObjectId,
+      force: force.multiplyScalar(this.strength),
+      position: this.dragLocalAnchor
+    });
+  }
+
+  endDrag() {
+    this.dragStarted = false;
+    physicsWorker.postMessage({
+      type: "drag-force",
+      object: null
+    });
+  }
+
+  onClick(e) {
+    if (e.shiftKey && e.button === 0) {
+      var x = e.clientX;
+      var y = e.clientY;
+      this.cameraControls.enabled = false;
+      var screen = renderer.getSize();
+      this.mouse.x = (x / screen.width) * 2 - 1;
+      this.mouse.y = (-y / screen.height) * 2 + 1;
+      this.screenOffset.set(e.screenX - x, e.screenY -y);
+      this.raycaster.setFromCamera(this.mouse, camera);
+      var objects = Object.values(shapes);
+      var intersects = this.raycaster.intersectObjects(objects);
+      if (intersects.length > 0) {
+        var intersection = intersects[0];
+        this.startDrag(intersection.object, intersection.point);
+      }
+    }
+  }
+
+  onMouseMove(e) {
+    if (this.dragStarted) {
+      var x = e.screenX - this.screenOffset.x;
+      var y = e.screenY - this.screenOffset.y;
+      var screen = renderer.getSize();
+      this.mouse.x = (x / screen.width) * 2 - 1;
+      this.mouse.y = (-y / screen.height) * 2 + 1;
+    }
+  }
+
+  onRelease(e) {
+    if (this.dragStarted) {
+      this.endDrag();
+    }
+    this.cameraControls.enabled = true;
+  }
+}
+
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
-var orbitControls = new THREE.OrbitControls(camera);
-orbitControls.enableDamping = true;
-orbitControls.rotateSpeed = 0.7;
 
 var renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -15,6 +121,12 @@ renderer.physicallyCorrectLights = true;
 renderer.toneMapping = THREE.Uncharted2ToneMapping;
 
 document.body.appendChild(renderer.domElement);
+
+var orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+orbitControls.enableDamping = true;
+orbitControls.rotateSpeed = 0.7;
+
+var dragControls = new PhysicsDragController(renderer.domElement, orbitControls);
 
 function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -47,9 +159,19 @@ var testLight = new THREE.PointLight(0x3030ff, 8.0, 10, 2);
 testLight.position.set(0,2,4);
 scene.add(testLight);
 
-camera.position.set(0.5, 6, -5);
-orbitControls.target.set(0, 4, 0);
+camera.position.set(0.5, 7, -3);
+orbitControls.target.set(0, 6, 0);
 orbitControls.update();
+
+var debugObject = null;
+(function () {
+  var geometry = new THREE.SphereGeometry(0.03, 32, 32);
+  var material = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+  debugObject = new THREE.Mesh(geometry, material);
+  debugObject.castShadow = true;
+  debugObject.receiveShadow = true;
+  scene.add(debugObject);
+})();
 
 // User interface
 var controlData = {
@@ -58,10 +180,27 @@ var controlData = {
   },
   toggle: function () {
     physicsWorker.postMessage({type: "toggle"});
-  }
+  },
+  "Drag Strength": 1.0,
+  l_shoulder_x: 1.0,
+  l_shoulder_y: 1.0,
+  l_shoulder_z: 1.0,
+  l_arm: 1.0,
 };
 var gui = new dat.GUI();
-gui.remember(controlData);
+// gui.remember(controlData);
+gui.add(controlData, 'Drag Strength', 0.0, 50.0).onChange(function () {
+  dragControls.strength = controlData['Drag Strength'];
+});
+gui.add(controlData, 'l_shoulder_x', -Math.PI, Math.PI);
+gui.add(controlData, 'l_shoulder_y', -Math.PI, Math.PI);
+gui.add(controlData, 'l_shoulder_z', -Math.PI, Math.PI);
+gui.add(controlData, 'l_arm', -Math.PI, Math.PI).onChange(function () {
+  physicsWorker.postMessage({
+    type: "control-update",
+    controls: {l_arm: controlData.l_arm}
+  });
+});
 gui.add(controlData, 'reset');
 gui.add(controlData, 'toggle');
 
@@ -85,6 +224,7 @@ function animate() {
   requestAnimationFrame(animate);
 
   orbitControls.update();
+  dragControls.updateDrag();
 
   renderer.render(scene, camera);
 }

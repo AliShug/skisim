@@ -2,7 +2,75 @@
 
 importScripts('ammo.js');
 
+class PIDController {
+  constructor(kp, ki, kd) {
+    this.integral = 0.0;
+    this.last_error = 0.0;
+    this.kp = kp;
+    this.ki = ki;
+    this.kd = kd;
+  }
+
+  getUpdate(target, state, dt) {
+    var error = target - state;
+    this.integral += error * dt;
+    var derivative = (error - this.last_error) / dt;
+    this.last_error = error;
+    return this.kp*error + this.ki*this.integral + this.kd*derivative;
+  }
+}
+
+class HingeController {
+  constructor (joint, target = 0.0) {
+    this.target = target;
+    this.joint = joint;
+    this.pid = new PIDController(0.5, 0.1, 0.0);
+  }
+
+  setTarget(target) {
+    this.target = target;
+  }
+
+  update(dt) {
+    var state = this.joint.getHingeAngle();
+    // console.log(state);
+    var input = this.pid.getUpdate(this.target, state, dt);
+    //this.joint.setMotorTarget(input, 0.1);
+    this.joint.setMotorTarget(this.target, 0.1);
+  }
+}
+
+class ExternalForce {
+  constructor() {
+    this.target = null;
+    this.force = null;
+    this.point = null;
+  }
+
+  set(target, force=null, point=null) {
+    this.target = target;
+    this.force = force;
+    this.point = point;
+  }
+
+  apply() {
+    if (this.target === null) return;
+    // Figure out where to apply the force
+    // inverse-then-inverse pattern because emscripten hates operators and
+    // Bullet loves them
+    var worldTransform = this.target.getWorldTransform();
+    var worldInverse = worldTransform.inverse();
+    var point = worldInverse.invXform(this.point);
+    console.log([point.x(), point.y(), point.z()]);
+    point.op_sub(worldTransform.getOrigin());
+    this.target.applyForce(this.force, point);
+  }
+}
+
 Ammo().then(function(Ammo) {
+  // Convenience
+  var Vec3 = Ammo.btVector3;
+
   // Bullet code
   var collisionConfig =null;
   var dispatcher = null;
@@ -12,6 +80,8 @@ Ammo().then(function(Ammo) {
   var bodies = {};
   var dynamicBodies = {};
   var joints = {};
+  var jointControllers = {};
+  var dragForce = new ExternalForce();
 
   function resetPhysics() {
     if (dynamicsWorld !== null) {
@@ -33,7 +103,7 @@ Ammo().then(function(Ammo) {
       overlappingPairCache,
       solver,
       collisionConfig);
-    dynamicsWorld.setGravity(new Ammo.btVector3(0, -9.81, 0));
+    dynamicsWorld.setGravity(new Vec3(0, -9.81, 0));
 
     bodies = {};
     dynamicBodies = {};
@@ -47,16 +117,16 @@ Ammo().then(function(Ammo) {
     for (var i = 0; i < terrainMesh.faces.length; i++) {
       var face = terrainMesh.faces[i];
       var v1 = terrainMesh.vertices[face.a];
-      var a = new Ammo.btVector3(v1.x, v1.y, v1.z);
+      var a = new Vec3(v1.x, v1.y, v1.z);
       var v2 = terrainMesh.vertices[face.b];
-      var b = new Ammo.btVector3(v2.x, v2.y, v2.z);
+      var b = new Vec3(v2.x, v2.y, v2.z);
       var v3 = terrainMesh.vertices[face.c];
-      var c = new Ammo.btVector3(v3.x, v3.y, v3.z);
+      var c = new Vec3(v3.x, v3.y, v3.z);
       groundShapeMesh.addTriangle(a, b, c, true);
     }
     var groundShape = new Ammo.btBvhTriangleMeshShape(groundShapeMesh, true);
     var mass = 0;
-    var localInertia = new Ammo.btVector3(0,0,0);
+    var localInertia = new Vec3(0,0,0);
     var myMotionState = new Ammo.btDefaultMotionState(groundTransform);
     var rbInfo = new Ammo.btRigidBodyConstructionInfo(0, myMotionState, groundShape, localInertia);
     var body = new Ammo.btRigidBody(rbInfo);
@@ -66,16 +136,16 @@ Ammo().then(function(Ammo) {
 
   function createBox(params, transform = null) {
     var {id, x=0, y=0, z=0, w=1, d=1, h=1, yaw=0, pitch=0, roll=0} = params;
-    var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(w/2, h/2, d/2));
+    var boxShape = new Ammo.btBoxShape(new Vec3(w/2, h/2, d/2));
     var rotation = new Ammo.btQuaternion();
     rotation.setEulerZYX(yaw, pitch, roll);
-    var translation = new Ammo.btVector3(x, y, z);
+    var translation = new Vec3(x, y, z);
     if (transform !== null) {
       translation = translation.op_add(transform.getOrigin());
     }
     var startTransform = new Ammo.btTransform(rotation, translation);
     var mass = 1;
-    var localInertia = new Ammo.btVector3(0, 0, 0);
+    var localInertia = new Vec3(0, 0, 0);
     boxShape.calculateLocalInertia(mass, localInertia);
     var myMotionState = new Ammo.btDefaultMotionState(startTransform);
     var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, boxShape, localInertia);
@@ -91,6 +161,13 @@ Ammo().then(function(Ammo) {
   }
 
   function pinBodies(bodyA, bodyB, pivot, transform = null) {
+    if (transform !== null) {
+      var invTransform = transform.inverse();
+      pivot = invTransform.invXform(pivot);
+      console.log([pivot.x(), pivot.y(), pivot.z()]);
+    }
+    var xformA = bodyA.getWorldTransform();
+    var xformB = bodyB.getWorldTransform();
     // var constraint = new Ammo.btFixedConstraint(bodyA, bodyB, new Ammo.btTransform(), new Ammo.btTransform());
   }
 
@@ -112,7 +189,7 @@ Ammo().then(function(Ammo) {
 
     var rootTransform = new Ammo.btTransform();
     rootTransform.setIdentity();
-    rootTransform.setOrigin(new Ammo.btVector3(0, 5, 0));
+    rootTransform.setOrigin(new Vec3(0, 5, 0));
 
     // Humanish character
     var h = 1.8;
@@ -202,10 +279,10 @@ Ammo().then(function(Ammo) {
     }, rootTransform));
 
     // TODO: remove (testing)
-    bodies.chest.setMassProps(0, new Ammo.btVector3(0,0,0));
+    bodies.chest.setMassProps(0, new Vec3(0,0,0));
     // Joints
-    var shoulderPivotA = new Ammo.btVector3(-shoulderRadial, shoulderHeight-chestHeight, 0);
-    var shoulderPivotB = new Ammo.btVector3(armUpperLength / 2, 0, 0);
+    var shoulderPivotA = new Vec3(-shoulderRadial, shoulderHeight-chestHeight, 0);
+    var shoulderPivotB = new Vec3(armUpperLength / 2, 0, 0);
     var shoulderTransformA = new Ammo.btTransform();
     shoulderTransformA.setIdentity();
     shoulderTransformA.setOrigin(shoulderPivotA);
@@ -220,24 +297,25 @@ Ammo().then(function(Ammo) {
     dynamicsWorld.addConstraint(shoulder, true);
     joints.shoulder = shoulder;
 
-    var elbowPivotA = new Ammo.btVector3(armLowerLength / 2, 0, 0);
-    var elbowPivotB = new Ammo.btVector3(-armUpperLength / 2, 0, 0);
-    var elbowAxis = new Ammo.btVector3(0, 0, 1);
+    var elbowPivotA = new Vec3(armLowerLength / 2, 0, 0);
+    var elbowPivotB = new Vec3(-armUpperLength / 2, 0, 0);
+    var elbowAxis = new Vec3(0, 0, 1);
     var elbow = new Ammo.btHingeConstraint(
       bodies.l_arm_l, bodies.l_arm_u,
       elbowPivotA, elbowPivotB, elbowAxis, elbowAxis
     );
     elbow.enableMotor(true);
-    elbow.setMaxMotorImpulse(0.005);
+    elbow.setMaxMotorImpulse(0.015);
     // Set motor target angle difference to reach in time dt
     elbow.setMotorTarget(Math.PI, 1);
     //elbow.setLimit(-Math.PI/4, Math.PI/4, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(elbow, true);
     joints.elbow = elbow;
+    jointControllers.elbow = new HingeController(elbow);
 
-    var spinePivotA = new Ammo.btVector3(0, -chestLength / 2, u/6);
-    var spinePivotB = new Ammo.btVector3(0, u / 2, u/6);
-    var spineAxis = new Ammo.btVector3(1, 0, 0);
+    var spinePivotA = new Vec3(0, -chestLength / 2, u/6);
+    var spinePivotB = new Vec3(0, u / 2, u/6);
+    var spineAxis = new Vec3(1, 0, 0);
     var spine = new Ammo.btHingeConstraint(
       bodies.chest, bodies.gut,
       spinePivotA, spinePivotB, spineAxis, spineAxis
@@ -251,9 +329,9 @@ Ammo().then(function(Ammo) {
     dynamicsWorld.addConstraint(spine, true);
     joints.spine = spine;
 
-    var neckPivotA = new Ammo.btVector3(0, chestLength / 2 + neckLength / 2, u/6);
-    var neckPivotB = new Ammo.btVector3(0, -u / 2 - neckLength / 2, u/6);
-    var neckAxis = new Ammo.btVector3(1, 0, 0);
+    var neckPivotA = new Vec3(0, chestLength / 2 + neckLength / 2, u/6);
+    var neckPivotB = new Vec3(0, -u / 2 - neckLength / 2, u/6);
+    var neckAxis = new Vec3(1, 0, 0);
     var neck = new Ammo.btHingeConstraint(
       bodies.chest, bodies.head,
       neckPivotA, neckPivotB, neckAxis, neckAxis
@@ -269,7 +347,7 @@ Ammo().then(function(Ammo) {
 
     // pin hands to lower arms
     pinBodies(bodies.l_hand, bodies.l_arm_l,
-      new Ammo.btVector3(
+      new Vec3(
         -shoulderRadial - armUpperLength - armLowerLength,
         shoulderHeight, 0
       ), rootTransform
@@ -313,18 +391,28 @@ Ammo().then(function(Ammo) {
   }
 
   function mainLoop() {
+    var dt = 1/200;
     for (var i = 0; i < 4; i++) {
-      simulate(1/200);
+      simulate(dt);
+      controlUpdate(dt);
     }
     updateView();
     // clearInterval(interval); // UNCOMMENT TO PAUSE ON START
+  }
+
+  function controlUpdate(dt) {
+    for (var jointId in jointControllers) {
+      jointControllers[jointId].update(dt);
+    }
+
+    dragForce.apply();
   }
 
   var interval = null;
 
   onmessage = function(event) {
     var data = event.data;
-    if (data.type == "start-up" || data.type == "reset") {
+    if (data.type === "start-up" || data.type === "reset") {
       if ("terrain" in event.data) {
         startUp(event.data.terrain);
       }
@@ -334,6 +422,22 @@ Ammo().then(function(Ammo) {
 
       if (interval) clearInterval(interval);
       interval = setInterval(mainLoop, 1000/60);
+    }
+    else if (data.type === "control-update") {
+      jointControllers.elbow.setTarget(data.controls.l_arm);
+    }
+    else if (data.type === "drag-force") {
+      if (data.object === null) {
+        dragForce.set(null);
+      }
+      else {
+        var object = bodies[data.object];
+        var f = data.force;
+        var p = data.position;
+        var point = new Vec3(p.x, p.y, p.z);
+        var force = new Vec3(f.x, f.y, f.z);
+        dragForce.set(object, force, point);
+      }
     }
   };
 });
