@@ -2,74 +2,122 @@
 
 importScripts('ammo.js');
 
-class PIDController {
-  constructor(kp, ki, kd) {
-    this.integral = 0.0;
-    this.last_error = 0.0;
-    this.kp = kp;
-    this.ki = ki;
-    this.kd = kd;
-  }
-
-  getUpdate(target, state, dt) {
-    var error = target - state;
-    this.integral += error * dt;
-    var derivative = (error - this.last_error) / dt;
-    this.last_error = error;
-    return this.kp*error + this.ki*this.integral + this.kd*derivative;
-  }
-}
-
-class HingeController {
-  constructor (joint, target = 0.0) {
-    this.target = target;
-    this.joint = joint;
-    this.pid = new PIDController(0.5, 0.1, 0.0);
-  }
-
-  setTarget(target) {
-    this.target = target;
-  }
-
-  update(dt) {
-    var state = this.joint.getHingeAngle();
-    // console.log(state);
-    var input = this.pid.getUpdate(this.target, state, dt);
-    //this.joint.setMotorTarget(input, 0.1);
-    this.joint.setMotorTarget(this.target, 0.1);
-  }
-}
-
-class ExternalForce {
-  constructor() {
-    this.target = null;
-    this.force = null;
-    this.point = null;
-  }
-
-  set(target, force=null, point=null) {
-    this.target = target;
-    this.force = force;
-    this.point = point;
-  }
-
-  apply() {
-    if (this.target === null) return;
-    // Figure out where to apply the force
-    // inverse-then-inverse pattern because emscripten hates operators and
-    // Bullet loves them
-    var worldTransform = this.target.getWorldTransform();
-    var worldInverse = worldTransform.inverse();
-    var point = worldInverse.invXform(this.point);
-    console.log([point.x(), point.y(), point.z()]);
-    point.op_sub(worldTransform.getOrigin());
-    this.target.applyForce(this.force, point);
-  }
-}
 
 Ammo().then(function(Ammo) {
   // Convenience
   var Vec3 = Ammo.btVector3;
+  Vec3.prototype.clone = function () {
+    var out = new Vec3(this.x(), this.y(), this.z());
+    return out;
+  };
+  Vec3.prototype.prettyPrint = function () {
+    var x = this.x(), y = this.y(), z = this.z();
+    console.log(`${x}, ${y}, ${z}`);
+  };
+
+  // General-purpose PID control
+  class PIDController {
+    constructor(kp, ki, kd) {
+      this.integral = 0.0;
+      this.last_error = 0.0;
+      this.kp = kp;
+      this.ki = ki;
+      this.kd = kd;
+    }
+
+    getUpdate(target, state, dt) {
+      var error = target - state;
+      this.integral += error * dt;
+      var derivative = (error - this.last_error) / dt;
+      this.last_error = error;
+      return this.kp*error + this.ki*this.integral + this.kd*derivative;
+    }
+  }
+
+  // Hinge joint controller
+  // TODO: custom control?
+  class HingeController {
+    constructor (joint, target = 0.0) {
+      this.target = target;
+      this.joint = joint;
+      this.pid = new PIDController(0.5, 0.1, 0.0);
+    }
+
+    setTarget(target) {
+      this.target = target;
+    }
+
+    update(dt) {
+      var state = this.joint.getHingeAngle();
+      // console.log(state);
+      var input = this.pid.getUpdate(this.target, state, dt);
+      //this.joint.setMotorTarget(input, 0.1);
+      this.joint.setMotorTarget(this.target, 0.1);
+    }
+  }
+
+  // General-purpose external force
+  class ExternalForce {
+    constructor() {
+      this.target = null;
+      this.force = null;
+      this.point = null;
+    }
+
+    set(target, force=null, point=null) {
+      this.target = target;
+      this.force = force;
+      this.point = point;
+    }
+
+    apply() {
+      if (this.target === null) return;
+      // Figure out where to apply the force
+      // inverse-then-inverse pattern because emscripten hates operators and
+      // Bullet loves them
+      var worldTransform = this.target.getWorldTransform();
+      var worldInverse = worldTransform.inverse();
+      var point = worldInverse.invXform(this.point);
+      console.log([point.x(), point.y(), point.z()]);
+      point.op_sub(worldTransform.getOrigin());
+      this.target.applyForce(this.force, point);
+    }
+  }
+
+  var mouseDragTransform = new Ammo.btTransform();
+  class MouseDrag {
+    constructor() {
+      this.dragForce = new ExternalForce();
+      this.dragPoint = null;
+      this.dragAnchor = null;
+      this.target = null;
+      this.strength = 0;
+    }
+
+    set(target, point=null, anchor=null, strength=1) {
+      this.target = target;
+      this.dragAnchor = anchor;
+      this.point = point;
+      this.strength = strength;
+    }
+
+    apply() {
+      if (this.target == null) return;
+      // calculate the force to apply
+      // local->global position
+      this.target.getMotionState().getWorldTransform(mouseDragTransform);
+      var worldBasis = mouseDragTransform.getBasis();
+      var invWorld = mouseDragTransform.inverse();
+      var anchorPosition = invWorld.invXform(this.dragAnchor);
+      var offsetPosition = anchorPosition.clone();
+      offsetPosition.op_sub(mouseDragTransform.getOrigin());
+      var force = this.point.clone();
+      force.op_sub(anchorPosition);
+      force.op_mul(this.strength);
+      force.prettyPrint();
+      this.target.applyForce(force, offsetPosition);
+    }
+  }
 
   // Bullet code
   var collisionConfig =null;
@@ -81,7 +129,7 @@ Ammo().then(function(Ammo) {
   var dynamicBodies = {};
   var joints = {};
   var jointControllers = {};
-  var dragForce = new ExternalForce();
+  var mouseDrag = new MouseDrag();
 
   function resetPhysics() {
     if (dynamicsWorld !== null) {
@@ -325,7 +373,7 @@ Ammo().then(function(Ammo) {
     // Set motor target angle difference to reach in time dt
     // spine.setMotorTarget(Math.PI, 1);
     // +ve = backward lean
-    spine.setLimit(-Math.PI/4, Math.PI/6, 0.9, 0.1, 1.0);
+    // spine.setLimit(-Math.PI/4, Math.PI/6, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(spine, true);
     joints.spine = spine;
 
@@ -405,7 +453,7 @@ Ammo().then(function(Ammo) {
       jointControllers[jointId].update(dt);
     }
 
-    dragForce.apply();
+    mouseDrag.apply();
   }
 
   var interval = null;
@@ -428,15 +476,15 @@ Ammo().then(function(Ammo) {
     }
     else if (data.type === "drag-force") {
       if (data.object === null) {
-        dragForce.set(null);
+        mouseDrag.set(null);
       }
       else {
         var object = bodies[data.object];
-        var f = data.force;
+        var a = data.anchor;
         var p = data.position;
         var point = new Vec3(p.x, p.y, p.z);
-        var force = new Vec3(f.x, f.y, f.z);
-        dragForce.set(object, force, point);
+        var anchor = new Vec3(a.x, a.y, a.z);
+        mouseDrag.set(object, point, anchor, data.strength);
       }
     }
   };

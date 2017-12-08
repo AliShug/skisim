@@ -1,7 +1,7 @@
 /*jshint esversion:6*/
 
 class PhysicsDragController {
-  constructor(domElement, cameraControls, strength=1.0) {
+  constructor(domElement, cameraControls, strength=5.0) {
     this.mouse = new THREE.Vector2();
     this.targetObjectId = null;
     this.raycaster = new THREE.Raycaster();
@@ -36,9 +36,9 @@ class PhysicsDragController {
     this.dragStartPosition.copy(point);
     var invMat = new THREE.Matrix4();
     invMat.getInverse(object.matrix);
+    this.debugObject.position.copy(point);
     this.dragLocalAnchor.copy(point.applyMatrix4(invMat));
     this.dragStarted = true;
-    this.debugObject.position.copy(point);
     this.debugObject.visible = true;
   }
 
@@ -58,17 +58,12 @@ class PhysicsDragController {
     var point = l0.clone();
     point.addScaledVector(l, t);
     this.debugObject.position.copy(point);
-    // calculate the force to apply
-    var shape = shapes[this.targetObjectId];
-    var anchorPosition = this.dragLocalAnchor.clone();
-    anchorPosition.applyMatrix4(shape.matrix);
-    var force = new THREE.Vector3();
-    force.subVectors(point, anchorPosition);
     physicsWorker.postMessage({
       type: "drag-force",
       object: this.targetObjectId,
-      force: force.multiplyScalar(this.strength),
-      position: this.dragLocalAnchor
+      anchor: this.dragLocalAnchor,
+      position: point,
+      strength: this.strength
     });
   }
 
@@ -181,7 +176,7 @@ var controlData = {
   toggle: function () {
     physicsWorker.postMessage({type: "toggle"});
   },
-  "Drag Strength": 1.0,
+  "Drag Strength": 5.0,
   l_shoulder_x: 1.0,
   l_shoulder_y: 1.0,
   l_shoulder_z: 1.0,
@@ -189,9 +184,7 @@ var controlData = {
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
-gui.add(controlData, 'Drag Strength', 0.0, 50.0).onChange(function () {
-  dragControls.strength = controlData['Drag Strength'];
-});
+gui.add(dragControls, 'strength', 0.0, 50.0);
 gui.add(controlData, 'l_shoulder_x', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_y', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_z', -Math.PI, Math.PI);
