@@ -188,7 +188,7 @@ gui.add(dragControls, 'strength', 0.0, 50.0);
 gui.add(controlData, 'l_shoulder_x', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_y', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_z', -Math.PI, Math.PI);
-gui.add(controlData, 'l_arm', -0.9*Math.PI, 0.9*Math.PI).onChange(function () {
+gui.add(controlData, 'l_arm', 0, 0.9*Math.PI).onChange(function () {
   physicsWorker.postMessage({
     type: "control-update",
     controls: {l_arm: controlData.l_arm}
