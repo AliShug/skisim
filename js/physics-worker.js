@@ -2,6 +2,9 @@
 
 importScripts('ammo.js');
 
+var physicsDeltaTime = 1/1500;
+var physicsStepsPerUpdate = 20;
+var gravity = -9.81;
 
 Ammo().then(function(Ammo) {
   // Convenience
@@ -44,10 +47,13 @@ Ammo().then(function(Ammo) {
   // Hinge joint controller
   // TODO: custom control?
   class HingeController {
-    constructor (joint, target = 0.0) {
+    constructor (joint, maxTorque = 0.1, springRange = 0.1, target = 0.0) {
       this.target = target;
       this.joint = joint;
-      this.pid = new PIDController(0.5, 0.1, 0.0);
+      this.maxTorque = maxTorque;
+      this.range = springRange;
+      // this.pid = new PIDController(0.5, 0.1, 0.0);
+      this.joint.enableMotor(true);
     }
 
     setTarget(target) {
@@ -56,11 +62,11 @@ Ammo().then(function(Ammo) {
 
     update(dt) {
       var state = this.joint.getHingeAngle();
-      // console.log(state);
-      var input = this.pid.getUpdate(this.target, state, dt);
-      //this.joint.setMotorTarget(input, 0.1);
       this.joint.setMotorTarget(this.target, 0.1);
-      this.joint.setMaxMotorImpulse(0.05*Math.min(Math.abs(state-this.target)*20, 1));
+      // Servo-like torque limiting
+      var absError = Math.abs(state - this.target);
+      var torqueCoeff = Math.min(absError/this.range, 1);
+      this.joint.setMaxMotorImpulse(this.maxTorque*torqueCoeff);
     }
   }
 
@@ -157,7 +163,7 @@ Ammo().then(function(Ammo) {
       overlappingPairCache,
       solver,
       collisionConfig);
-    dynamicsWorld.setGravity(new Ammo.btVector3(0, -9.81, 0));
+    dynamicsWorld.setGravity(new Ammo.btVector3(0, gravity, 0));
 
     bodies = {};
     dynamicBodies = {};
@@ -359,28 +365,25 @@ Ammo().then(function(Ammo) {
     l_shoulderTransformA.setOrigin(l_shoulderPivotA);
     var l_shoulderTransformB = new Ammo.btTransform();
     l_shoulderTransformB.setIdentity();
+    l_shoulderTransformB.setRotation(new Ammo.btQuaternion(new Ammo.btVector3(1, 0, 0), Math.PI/2));
     l_shoulderTransformB.setOrigin(l_shoulderPivotB);
     var l_shoulder = new Ammo.btConeTwistConstraint(
       bodies.chest, bodies.l_arm_u,
       l_shoulderTransformA, l_shoulderTransformB
     );
-    //l_shoulder.setMotorTarget();
+    l_shoulder.setLimit(Math.PI/2, Math.PI/2, Math.PI/2, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(l_shoulder, true);
     joints.l_shoulder = l_shoulder;
 
     var l_elbowPivotA = new Ammo.btVector3(armLowerLength / 2, 0, 0);
     var l_elbowPivotB = new Ammo.btVector3(-armUpperLength / 2, 0, 0);
-    var l_elbowAxis = new Ammo.btVector3(0, 0, 1);
+    var l_elbowAxis = new Ammo.btVector3(0, 0, -1);
     var l_elbow = new Ammo.btHingeConstraint(
       bodies.l_arm_l, bodies.l_arm_u,
       l_elbowPivotA, l_elbowPivotB, l_elbowAxis, l_elbowAxis
     );
-    // l_elbow.enableAngularMotor(true, 0, 0.1);
-    l_elbow.enableMotor(true);
-    l_elbow.setMaxMotorImpulse(0.015);
     // Set motor target angle difference to reach in time dt
-    l_elbow.setMotorTarget(Math.PI, 1);
-    //l_elbow.setLimit(-Math.PI/4, Math.PI/4, 0.9, 0.1, 1.0);
+    l_elbow.setLimit(0, 0.9*Math.PI, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(l_elbow, true);
     joints.l_elbow = l_elbow;
     jointControllers.l_elbow = new HingeController(l_elbow);
@@ -392,12 +395,13 @@ Ammo().then(function(Ammo) {
     r_shoulderTransformA.setOrigin(r_shoulderPivotA);
     var r_shoulderTransformB = new Ammo.btTransform();
     r_shoulderTransformB.setIdentity();
+    r_shoulderTransformB.setRotation(new Ammo.btQuaternion(new Ammo.btVector3(1, 0, 0), Math.PI/2));
     r_shoulderTransformB.setOrigin(r_shoulderPivotB);
     var r_shoulder = new Ammo.btConeTwistConstraint(
       bodies.chest, bodies.r_arm_u,
       r_shoulderTransformA, r_shoulderTransformB
     );
-    //r_shoulder.setMotorTarget();
+    r_shoulder.setLimit(Math.PI/2, Math.PI/2, Math.PI/2, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(r_shoulder, true);
     joints.r_shoulder = r_shoulder;
 
@@ -408,10 +412,7 @@ Ammo().then(function(Ammo) {
       bodies.r_arm_l, bodies.r_arm_u,
       r_elbowPivotA, r_elbowPivotB, r_elbowAxis, r_elbowAxis
     );
-    r_elbow.enableMotor(true);
-    r_elbow.setMaxMotorImpulse(0.015);
     // Set motor target angle difference to reach in time dt
-    r_elbow.setMotorTarget(Math.PI, 1);
     r_elbow.setLimit(0, 0.9*Math.PI, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(r_elbow, true);
     joints.r_elbow = r_elbow;
@@ -477,7 +478,8 @@ Ammo().then(function(Ammo) {
       bodies.gut, bodies.r_leg_u,
       r_hipTransformA, r_hipTransformB
     );
-    //r_hip.setMotorTarget();
+    r_hip.setLimit(Math.PI/4, 0.05, Math.PI/4, 0.9, 0.1, 1.0);
+    r_hip.setDamping(0.1);
     dynamicsWorld.addConstraint(r_hip, true);
     joints.r_hip = r_hip;
 
@@ -525,7 +527,7 @@ Ammo().then(function(Ammo) {
       bodies.gut, bodies.l_leg_u,
       l_hipTransformA, l_hipTransformB
     );
-    //l_hip.setMotorTarget();
+    l_hip.setLimit(Math.PI/4, 0.05, Math.PI/4, 0.9, 0.1, 1.0);
     dynamicsWorld.addConstraint(l_hip, true);
     joints.l_hip = l_hip;
 
@@ -599,10 +601,9 @@ Ammo().then(function(Ammo) {
   }
 
   function mainLoop() {
-    var dt = 1/250;
-    for (var i = 0; i < 4; i++) {
-      simulate(dt);
-      controlUpdate(dt);
+    for (var i = 0; i < physicsStepsPerUpdate; i++) {
+      simulate(physicsDeltaTime);
+      controlUpdate(physicsDeltaTime);
     }
     updateView();
     // clearInterval(interval); // UNCOMMENT TO PAUSE ON START

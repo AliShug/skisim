@@ -1,5 +1,7 @@
 /*jshint esversion:6*/
 
+var terrainFile = 'terrain_smooth_v1.json';
+
 class PhysicsDragController {
   constructor(domElement, cameraControls, strength=5.0) {
     this.mouse = new THREE.Vector2();
@@ -167,6 +169,7 @@ scene.add(testLight);
 camera.position.set(0.5, 7, -3);
 orbitControls.target.set(0, 6, 0);
 orbitControls.update();
+var followCamera = false;
 
 // User interface
 var controlData = {
@@ -176,7 +179,9 @@ var controlData = {
   toggle: function () {
     physicsWorker.postMessage({type: "toggle"});
   },
-  "Drag Strength": 5.0,
+  "Follow-camera": function () {
+    followCamera = !followCamera;
+  },
   l_shoulder_x: 1.0,
   l_shoulder_y: 1.0,
   l_shoulder_z: 1.0,
@@ -184,7 +189,7 @@ var controlData = {
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
-gui.add(dragControls, 'strength', 0.0, 50.0);
+gui.add(dragControls, 'strength', 0.0, 250.0);
 gui.add(controlData, 'l_shoulder_x', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_y', -Math.PI, Math.PI);
 gui.add(controlData, 'l_shoulder_z', -Math.PI, Math.PI);
@@ -196,11 +201,12 @@ gui.add(controlData, 'l_arm', 0, 0.9*Math.PI).onChange(function () {
 });
 gui.add(controlData, 'reset');
 gui.add(controlData, 'toggle');
+gui.add(controlData, 'Follow-camera');
 
 // Terrain Mesh
 var loader = new THREE.JSONLoader();
 loader.load(
-  'assets/terrain.json',
+  'assets/' + terrainFile,
   function (geometry, materials) {
     var material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
     var terrain = new THREE.Mesh(geometry, material);
@@ -212,12 +218,24 @@ loader.load(
   }
 );
 
+var chestLastPos = new THREE.Vector3();
+var cameraDelta = new THREE.Vector3();
+function updateCamera() {
+  if (followCamera) {
+    cameraDelta.subVectors(shapes.chest.position, chestLastPos);
+    orbitControls.target.copy(shapes.chest.position);
+    camera.position.add(cameraDelta);
+  }
+  chestLastPos.copy(shapes.chest.position);
+}
+
 // Main loop
 function animate() {
   requestAnimationFrame(animate);
 
   orbitControls.update();
   dragControls.updateDrag();
+  updateCamera();
 
   renderer.render(scene, camera);
 }
