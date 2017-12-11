@@ -182,21 +182,21 @@ var controlData = {
   "Follow-camera": function () {
     followCamera = !followCamera;
   },
-  l_shoulder_x: 1.0,
-  l_shoulder_y: 1.0,
-  l_shoulder_z: 1.0,
-  l_arm: 1.0,
+  l_shoulder_x: 0.0,
+  l_shoulder_y: 0.0,
+  l_shoulder_z: 0.0,
+  l_elbow: 0.0,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
 gui.add(dragControls, 'strength', 0.0, 250.0);
-gui.add(controlData, 'l_shoulder_x', -Math.PI, Math.PI);
-gui.add(controlData, 'l_shoulder_y', -Math.PI, Math.PI);
-gui.add(controlData, 'l_shoulder_z', -Math.PI, Math.PI);
-gui.add(controlData, 'l_arm', 0, 0.9*Math.PI).onChange(function () {
+gui.add(controlData, 'l_shoulder_x', -1.0, 1.0);
+gui.add(controlData, 'l_shoulder_y', -1.0, 1.0);
+gui.add(controlData, 'l_shoulder_z', -1.0, 1.0);
+gui.add(controlData, 'l_elbow', 0, 1.0).onChange(function () {
   physicsWorker.postMessage({
     type: "control-update",
-    controls: {l_arm: controlData.l_arm}
+    controls: {l_elbow: controlData.l_elbow}
   });
 });
 gui.add(controlData, 'reset');

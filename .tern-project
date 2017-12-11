@@ -7,6 +7,8 @@
         "js/three.js",
         "js/OrbitControls.js",
         "js/ammo.js",
-        "js/dat.gui.js"
+        "js/dat.gui.js",
+        "js/ammo_extensions.js",
+        "js/skiier.js",
     ]
 }
