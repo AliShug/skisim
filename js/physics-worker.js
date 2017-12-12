@@ -4,6 +4,8 @@ importScripts('ammo.js');
 
 var physicsDeltaTime = 1/1500;
 var physicsStepsPerUpdate = 20;
+// var physicsDeltaTime = 1/500;
+// var physicsStepsPerUpdate = 7;
 var gravity = -9.81;
 
 // Ammo must be loaded for any of the rest of this to make sense
@@ -191,6 +193,8 @@ Ammo().then(function(Ammo) {
     }
     else if (data.type === "control-update") {
       skiier.inputControls(data.controls);
+      skiier.joints.l_shoulder.setDamping(4, data.controls.damping);
+      skiier.joints.l_shoulder.setDamping(5, data.controls.damping);
     }
     else if (data.type === "drag-force") {
       if (data.object === null) {

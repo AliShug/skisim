@@ -79,16 +79,13 @@ class HingeController {
   }
 }
 
-class ConeController {
-  constructor (joint, maxTorque = 0.1, springRange = 0.1, target = new Ammo.btQuaternion()) {
+class ShoulderController {
+  constructor (joint) {
     this.target = target;
     this.joint = joint;
     this.maxTorque = maxTorque;
     this.springRange = springRange;
     this.joint.enableMotor(true);
-    this.x_lim = Math.PI;
-    this.y_lim = Math.PI;
-    this.z_lim = Math.PI;
   }
 
   setLimit(x, y, z, a, b, c) {
@@ -126,6 +123,9 @@ class Skiier {
   inputControls(controls) {
     this.jointControllers.l_elbow.setTarget(controls.l_elbow);
     this.jointControllers.r_elbow.setTarget(controls.r_elbow);
+    this.joints.l_shoulder.setEquilibriumPoint(3, controls.l_shoulder_x);
+    this.joints.l_shoulder.setEquilibriumPoint(4, controls.l_shoulder_y);
+    this.joints.l_shoulder.setEquilibriumPoint(5, controls.l_shoulder_z);
   }
 
   // Returns array of rigid body descriptions to be passed to the render thread
@@ -227,15 +227,32 @@ class Skiier {
     l_shoulderTransformB.setIdentity();
     l_shoulderTransformB.setRotation(new Ammo.btQuaternion(new Ammo.btVector3(1, 0, 0), Math.PI/2));
     l_shoulderTransformB.setOrigin(l_shoulderPivotB);
-    var l_shoulder = new Ammo.btConeTwistConstraint(
+    // var l_shoulder = new Ammo.btConeTwistConstraint(
+    //   this.bodies.chest, this.bodies.l_arm_u,
+    //   l_shoulderTransformA, l_shoulderTransformB
+    // );
+    var l_shoulder = new Ammo.btGeneric6DofSpringConstraint(
       this.bodies.chest, this.bodies.l_arm_u,
-      l_shoulderTransformA, l_shoulderTransformB
+      l_shoulderTransformA, l_shoulderTransformB, false
     );
+    l_shoulder.setLinearLowerLimit(new Ammo.btVector3(0,0,0));
+    l_shoulder.setLinearUpperLimit(new Ammo.btVector3(0,0,0));
+    // Angular - twist (back/forward), back/forward, down/up
+    l_shoulder.setAngularLowerLimit(new Ammo.btVector3(-Math.PI/2, -0.3*Math.PI, -0.46*Math.PI));
+    l_shoulder.setAngularUpperLimit(new Ammo.btVector3(Math.PI/2, 0.6*Math.PI, 0.55*Math.PI));
+    l_shoulder.enableSpring(3, true);
+    l_shoulder.enableSpring(4, true);
+    l_shoulder.enableSpring(5, true);
+    l_shoulder.setStiffness(3, 50.0);
+    l_shoulder.setStiffness(4, 200.0);
+    l_shoulder.setStiffness(5, 200.0);
+    l_shoulder.setDamping(3, 0.0005);
+    l_shoulder.setDamping(4, 0.0005);
+    l_shoulder.setDamping(5, 0.0005);
     this.world.addConstraint(l_shoulder, true);
-    this.jointControllers.l_shoulder = new ConeController(l_shoulder, 0.05, 0.1);
-    this.jointControllers.l_shoulder.setLimit(Math.PI/2, Math.PI/2, Math.PI/2, 0.9, 0.1, 1.0);
+    // this.jointControllers.l_shoulder = new ConeController(l_shoulder, 0.05, 0.1);
+    // this.jointControllers.l_shoulder.setLimit(Math.PI/2, Math.PI/2, Math.PI/2, 0.9, 0.1, 1.0);
     this.joints.l_shoulder = l_shoulder;
-    l_shoulder.setDamping(0.5);
 
     var l_elbowPivotA = new Ammo.btVector3(p.armLowerLength / 2, 0, 0);
     var l_elbowPivotB = new Ammo.btVector3(-p.armUpperLength / 2, 0, 0);

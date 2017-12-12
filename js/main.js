@@ -173,7 +173,7 @@ orbitControls.target.set(0, 6, 0);
 orbitControls.update();
 var followCamera = false;
 
-// User interface
+///// User interface
 var controlData = {
   reset: function () {
     physicsWorker.postMessage({type: "reset"});
@@ -189,6 +189,7 @@ var controlData = {
   l_shoulder_z: 0.0,
   l_elbow: 0.1,
   r_elbow: 0.1,
+  damping: 0.5,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
@@ -198,6 +199,7 @@ gui.add(controlData, 'l_shoulder_y', -1.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'l_shoulder_z', -1.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'l_elbow', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'r_elbow', 0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'damping', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'reset');
 gui.add(controlData, 'toggle');
 gui.add(controlData, 'Follow-camera');
@@ -211,6 +213,8 @@ function postControlUpdate() {
       l_shoulder_x: controlData.l_shoulder_x,
       l_shoulder_y: controlData.l_shoulder_y,
       l_shoulder_z: controlData.l_shoulder_z,
+
+      damping: controlData.damping,
     }
   });
 }
