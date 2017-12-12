@@ -49,9 +49,19 @@ class HingeController {
     this.target = target;
     this.joint = joint;
     this.maxTorque = maxTorque;
-    this.range = springRange;
+    this.springRange = springRange;
     // this.pid = new PIDController(0.5, 0.1, 0.0);
     this.joint.enableMotor(true);
+    this.min = -Math.PI;
+    this.max = Math.PI;
+    this.range = 2 * Math.PI;
+  }
+
+  setLimit(min, max, a, b, c) {
+    this.min = min;
+    this.max = max;
+    this.range = max - min;
+    this.joint.setLimit(min, max, a, b, c);
   }
 
   setTarget(target) {
@@ -59,12 +69,42 @@ class HingeController {
   }
 
   update(dt) {
+    var targetAngle = this.min + this.target*this.range;
     var state = this.joint.getHingeAngle();
-    this.joint.setMotorTarget(this.target, 0.1);
+    this.joint.setMotorTarget(targetAngle, 0.1);
     // Servo-like torque limiting
-    var absError = Math.abs(state - this.target);
-    var torqueCoeff = Math.min(absError/this.range, 1);
+    var absError = Math.abs(state - targetAngle);
+    var torqueCoeff = Math.min(absError/this.springRange, 1);
     this.joint.setMaxMotorImpulse(this.maxTorque*torqueCoeff);
+  }
+}
+
+class ConeController {
+  constructor (joint, maxTorque = 0.1, springRange = 0.1, target = new Ammo.btQuaternion()) {
+    this.target = target;
+    this.joint = joint;
+    this.maxTorque = maxTorque;
+    this.springRange = springRange;
+    this.joint.enableMotor(true);
+    this.x_lim = Math.PI;
+    this.y_lim = Math.PI;
+    this.z_lim = Math.PI;
+  }
+
+  setLimit(x, y, z, a, b, c) {
+    this.x_lim = x;
+    this.y_lim = y;
+    this.z_lim = z;
+    this.joint.setLimit(x, y, z, a, b, c);
+  }
+
+  setTarget(x, y, z) {
+
+  }
+
+  update(dt) {
+    this.joint.setMaxMotorImpulse(0.2);
+    this.joint.setMotorTarget(new Ammo.btQuaternion(0,0,0,1));
   }
 }
 
@@ -75,6 +115,17 @@ class Skiier {
     this.jointControllers = {};
     this.world = dynamicsWorld;
     this.visibles = [];
+  }
+
+  update(dt) {
+    for (var jointId in this.jointControllers) {
+      this.jointControllers[jointId].update(dt);
+    }
+  }
+
+  inputControls(controls) {
+    this.jointControllers.l_elbow.setTarget(controls.l_elbow);
+    this.jointControllers.r_elbow.setTarget(controls.r_elbow);
   }
 
   // Returns array of rigid body descriptions to be passed to the render thread
@@ -180,9 +231,11 @@ class Skiier {
       this.bodies.chest, this.bodies.l_arm_u,
       l_shoulderTransformA, l_shoulderTransformB
     );
-    l_shoulder.setLimit(Math.PI/2, Math.PI/2, Math.PI/2, 0.9, 0.1, 1.0);
     this.world.addConstraint(l_shoulder, true);
+    this.jointControllers.l_shoulder = new ConeController(l_shoulder, 0.05, 0.1);
+    this.jointControllers.l_shoulder.setLimit(Math.PI/2, Math.PI/2, Math.PI/2, 0.9, 0.1, 1.0);
     this.joints.l_shoulder = l_shoulder;
+    l_shoulder.setDamping(0.5);
 
     var l_elbowPivotA = new Ammo.btVector3(p.armLowerLength / 2, 0, 0);
     var l_elbowPivotB = new Ammo.btVector3(-p.armUpperLength / 2, 0, 0);
@@ -192,10 +245,10 @@ class Skiier {
       l_elbowPivotA, l_elbowPivotB, l_elbowAxis, l_elbowAxis
     );
     // Set motor target angle difference to reach in time dt
-    l_elbow.setLimit(0, 0.9*Math.PI, 0.9, 0.1, 1.0);
     this.world.addConstraint(l_elbow, true);
     this.joints.l_elbow = l_elbow;
     this.jointControllers.l_elbow = new HingeController(l_elbow);
+    this.jointControllers.l_elbow.setLimit(0, 0.9*Math.PI, 0.9, 0.1, 1.0);
 
     var r_shoulderPivotA = new Ammo.btVector3(p.shoulderRadial, p.shoulderHeight-p.chestHeight, 0);
     var r_shoulderPivotB = new Ammo.btVector3(-p.armUpperLength / 2, 0, 0);
@@ -222,10 +275,10 @@ class Skiier {
       r_elbowPivotA, r_elbowPivotB, r_elbowAxis, r_elbowAxis
     );
     // Set motor target angle difference to reach in time dt
-    r_elbow.setLimit(0, 0.9*Math.PI, 0.9, 0.1, 1.0);
     this.world.addConstraint(r_elbow, true);
     this.joints.r_elbow = r_elbow;
     this.jointControllers.r_elbow = new HingeController(r_elbow);
+    this.jointControllers.r_elbow.setLimit(0, 0.9*Math.PI, 0.9, 0.1, 1.0);
 
     var spinePivotA = new Ammo.btVector3(0, -p.chestLength / 2, p.u/6);
     var spinePivotB = new Ammo.btVector3(0, p.u / 2, p.u/6);

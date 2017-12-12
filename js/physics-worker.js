@@ -53,6 +53,7 @@ Ammo().then(function(Ammo) {
   var dynamicBodies = {};
   var mouseDrag = new MouseDrag();
   var skiier = null;
+  var savedTerrainMesh = null;
 
   function resetPhysics() {
     if (dynamicsWorld !== null) {
@@ -69,6 +70,7 @@ Ammo().then(function(Ammo) {
     dispatcher = new Ammo.btCollisionDispatcher(collisionConfig);
     overlappingPairCache = new Ammo.btDbvtBroadphase();
     solver = new Ammo.btSequentialImpulseConstraintSolver();
+    solver.setRandSeed(0);
     dynamicsWorld = new Ammo.btDiscreteDynamicsWorld(
       dispatcher,
       overlappingPairCache,
@@ -81,21 +83,23 @@ Ammo().then(function(Ammo) {
     joints = {};
   }
 
-  function loadTerrain(terrainMesh) {
+  function loadTerrain(terrainMesh = null) {
+    if (terrainMesh !== null) {
+      savedTerrainMesh = new Ammo.btTriangleMesh();
+      for (var i = 0; i < terrainMesh.faces.length; i++) {
+        var face = terrainMesh.faces[i];
+        var v1 = terrainMesh.vertices[face.a];
+        var a = new Ammo.btVector3(v1.x, v1.y, v1.z);
+        var v2 = terrainMesh.vertices[face.b];
+        var b = new Ammo.btVector3(v2.x, v2.y, v2.z);
+        var v3 = terrainMesh.vertices[face.c];
+        var c = new Ammo.btVector3(v3.x, v3.y, v3.z);
+        savedTerrainMesh.addTriangle(a, b, c, true);
+      }
+    }
+    var groundShape = new Ammo.btBvhTriangleMeshShape(savedTerrainMesh, true);
     var groundTransform = new Ammo.btTransform();
     groundTransform.setIdentity();
-    var groundShapeMesh = new Ammo.btTriangleMesh();
-    for (var i = 0; i < terrainMesh.faces.length; i++) {
-      var face = terrainMesh.faces[i];
-      var v1 = terrainMesh.vertices[face.a];
-      var a = new Ammo.btVector3(v1.x, v1.y, v1.z);
-      var v2 = terrainMesh.vertices[face.b];
-      var b = new Ammo.btVector3(v2.x, v2.y, v2.z);
-      var v3 = terrainMesh.vertices[face.c];
-      var c = new Ammo.btVector3(v3.x, v3.y, v3.z);
-      groundShapeMesh.addTriangle(a, b, c, true);
-    }
-    var groundShape = new Ammo.btBvhTriangleMeshShape(groundShapeMesh, true);
     var mass = 0;
     var localInertia = new Ammo.btVector3(0,0,0);
     var myMotionState = new Ammo.btDefaultMotionState(groundTransform);
@@ -106,18 +110,9 @@ Ammo().then(function(Ammo) {
   }
 
   function startUp(terrainMesh = null) {
-    if (terrainMesh === null) {
-      dynamicsWorld.removeRigidBody(bodies.ground);
-      var ground = bodies.ground;
-      resetPhysics();
-      bodies.ground = ground;
-      dynamicsWorld.addRigidBody(ground);
-    }
-    else {
-      // Register the terrain's geometry with the physics engine
-      resetPhysics();
-      loadTerrain(terrainMesh);
-    }
+    // Register the terrain's geometry with the physics engine
+    resetPhysics();
+    loadTerrain(terrainMesh);
 
     skiier = new Skiier(dynamicsWorld);
     skiier.initSkiier(defaultSkiier, true);
@@ -145,7 +140,7 @@ Ammo().then(function(Ammo) {
   }
 
   function simulate(dt) {
-    dynamicsWorld.stepSimulation(dt, 2, dt);
+    dynamicsWorld.stepSimulation(dt, 1, dt);
   }
 
   function updateView() {
@@ -175,10 +170,7 @@ Ammo().then(function(Ammo) {
   }
 
   function controlUpdate(dt) {
-    for (var jointId in skiier.jointControllers) {
-      skiier.jointControllers[jointId].update(dt);
-    }
-
+    skiier.update(dt);
     mouseDrag.apply();
   }
 
@@ -198,8 +190,7 @@ Ammo().then(function(Ammo) {
       interval = setInterval(mainLoop, 1000/60);
     }
     else if (data.type === "control-update") {
-      jointControllers.l_elbow.setTarget(data.controls.l_arm);
-      jointControllers.r_elbow.setTarget(data.controls.l_arm);
+      skiier.inputControls(data.controls);
     }
     else if (data.type === "drag-force") {
       if (data.object === null) {

@@ -10,7 +10,7 @@ class PhysicsDragController {
     this.domElement = domElement;
     this.cameraControls = cameraControls;
     this.dragStarted = false;
-    this.dragStartPosition = new THREE.Vector3(0, 0, 0);
+    this.dragCameraOffsetPosition = new THREE.Vector3(0, 0, 0);
     this.dragLocalAnchor = new THREE.Vector3(0, 0, 0);
     this.screenOffset = new THREE.Vector2();
     this.strength = strength;
@@ -35,7 +35,8 @@ class PhysicsDragController {
       }
     }
     // console.log(`Hit ${this.targetObjectId}`);
-    this.dragStartPosition.copy(point);
+    this.dragCameraOffsetPosition.copy(point);
+    this.dragCameraOffsetPosition.sub(camera.position);
     var invMat = new THREE.Matrix4();
     invMat.getInverse(object.matrix);
     this.debugObject.position.copy(point);
@@ -54,7 +55,8 @@ class PhysicsDragController {
     var y = new THREE.Vector3();
     var z = new THREE.Vector3();
     camera.matrix.extractBasis(x, y, z);
-    var p0l0 = this.dragStartPosition.clone();
+    var p0l0 = this.dragCameraOffsetPosition.clone();
+    p0l0.add(camera.position);
     p0l0.sub(l0);
     var t = p0l0.dot(z) / z.dot(l);
     var point = l0.clone();
@@ -185,23 +187,33 @@ var controlData = {
   l_shoulder_x: 0.0,
   l_shoulder_y: 0.0,
   l_shoulder_z: 0.0,
-  l_elbow: 0.0,
+  l_elbow: 0.1,
+  r_elbow: 0.1,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
 gui.add(dragControls, 'strength', 0.0, 250.0);
-gui.add(controlData, 'l_shoulder_x', -1.0, 1.0);
-gui.add(controlData, 'l_shoulder_y', -1.0, 1.0);
-gui.add(controlData, 'l_shoulder_z', -1.0, 1.0);
-gui.add(controlData, 'l_elbow', 0, 1.0).onChange(function () {
-  physicsWorker.postMessage({
-    type: "control-update",
-    controls: {l_elbow: controlData.l_elbow}
-  });
-});
+gui.add(controlData, 'l_shoulder_x', -1.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_shoulder_y', -1.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_shoulder_z', -1.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_elbow', 0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_elbow', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'reset');
 gui.add(controlData, 'toggle');
 gui.add(controlData, 'Follow-camera');
+
+function postControlUpdate() {
+  physicsWorker.postMessage({
+    type: "control-update",
+    controls: {
+      l_elbow: controlData.l_elbow,
+      r_elbow: controlData.r_elbow,
+      l_shoulder_x: controlData.l_shoulder_x,
+      l_shoulder_y: controlData.l_shoulder_y,
+      l_shoulder_z: controlData.l_shoulder_z,
+    }
+  });
+}
 
 // Terrain Mesh
 var loader = new THREE.JSONLoader();
