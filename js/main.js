@@ -119,6 +119,7 @@ class PhysicsDragController {
 
 var scene = new THREE.Scene();
 var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+scene.background = new THREE.Color(0xffffff);
 
 var renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -184,25 +185,55 @@ var controlData = {
   "Follow-camera": function () {
     followCamera = !followCamera;
   },
-  l_shoulder_x: 0.0,
-  l_shoulder_y: 0.0,
-  l_shoulder_z: 0.0,
+  l_shoulder_x: 0.5,
+  l_shoulder_y: 0.5,
+  r_shoulder_x: 0.5,
+  r_shoulder_y: 0.5,
   l_elbow: 0.1,
   r_elbow: 0.1,
-  damping: 0.5,
+  l_hip_x: 0.5,
+  l_hip_y: 0.5,
+  r_hip_x: 0.5,
+  r_hip_y: 0.5,
+  l_knee: 0.5,
+  r_knee: 0.5,
+  l_ankle: 0.5,
+  r_ankle: 0.5,
+  neck: 0.5,
+  spine: 0.5,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
 gui.add(dragControls, 'strength', 0.0, 250.0);
-gui.add(controlData, 'l_shoulder_x', -1.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_shoulder_y', -1.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_shoulder_z', -1.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_elbow', 0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_elbow', 0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'damping', 0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_shoulder_x', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_shoulder_y', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_shoulder_x', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_shoulder_y', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_elbow', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_elbow', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_hip_x', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_hip_y', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_hip_x', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_hip_y', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_knee', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_knee', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'l_ankle', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'r_ankle', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'neck', 0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'spine', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'reset');
 gui.add(controlData, 'toggle');
 gui.add(controlData, 'Follow-camera');
+
+// output gui
+// <div style="position:absolute;z-index:1000;left: 0;top: 0;margin-left: 10px;padding: 5px;font-size: small;">Hello world
+//</div>
+var debugReadout = document.createElement("div");
+document.body.appendChild(debugReadout);
+debugReadout.setAttribute(
+  'style',
+  'position:absolute;z-index:1000;left: 0;top: 0;margin-left: 10px;padding: 5px;font-size: small;'
+);
 
 function postControlUpdate() {
   physicsWorker.postMessage({
@@ -212,9 +243,18 @@ function postControlUpdate() {
       r_elbow: controlData.r_elbow,
       l_shoulder_x: controlData.l_shoulder_x,
       l_shoulder_y: controlData.l_shoulder_y,
-      l_shoulder_z: controlData.l_shoulder_z,
-
-      damping: controlData.damping,
+      r_shoulder_x: controlData.r_shoulder_x,
+      r_shoulder_y: controlData.r_shoulder_y,
+      // l_hip_x: controlData.l_hip_x,
+      // l_hip_y: controlData.l_hip_y,
+      // r_hip_x: controlData.r_hip_x,
+      // r_hip_y: controlData.r_hip_y,
+      // l_knee: controlData.l_knee,
+      // r_knee: controlData.r_knee,
+      // l_ankle: controlData.l_ankle,
+      // r_ankle: controlData.r_ankle,
+      neck: controlData.neck,
+      spine: controlData.spine,
     }
   });
 }
@@ -256,6 +296,30 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+function syntaxHighlight(json) {
+  if (typeof json != 'string') {
+    json = JSON.stringify(json, undefined, 2);
+  }
+  json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  json = json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
+    var cls = 'number';
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) {
+        cls = 'key';
+      } else {
+        cls = 'string';
+      }
+    } else if (/true|false/.test(match)) {
+      cls = 'boolean';
+    } else if (/null/.test(match)) {
+      cls = 'null';
+    }
+    return '<span class="' + cls + '">' + match + '</span>';
+  });
+  json = json.replace(/ /g, '&nbsp;');
+  return json.replace(/\n/g, '<br/>');
+}
+
 // Physics setup
 // Physics objects are generated in the worker thread!
 var shapes = {};
@@ -263,7 +327,7 @@ var physicsWorker = new Worker('js/physics-worker.js');
 var running = false;
 physicsWorker.onmessage = function(event) {
   var data = event.data;
-  if (data.type == "scene-description") {
+  if (data.type === "scene-description") {
     // Sync up with the physics world
     console.log(data.bodies);
     for (var i = 0; i < data.bodies.length; i++) {
@@ -285,6 +349,10 @@ physicsWorker.onmessage = function(event) {
       shape.receiveShadow = true;
       shapes[id] = shape;
     }
+  }
+  else if (data.type === "info-readout") {
+    var json = syntaxHighlight(data.content);
+    debugReadout.innerHTML = json;
   }
   else {
     if (data.debug) {

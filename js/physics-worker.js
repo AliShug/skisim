@@ -40,7 +40,6 @@ Ammo().then(function(Ammo) {
       var force = this.point.clone();
       force.op_sub(anchorPosition);
       force.op_mul(this.strength);
-      force.prettyPrint();
       this.target.applyForce(force, offsetPosition);
     }
   }
@@ -79,6 +78,7 @@ Ammo().then(function(Ammo) {
       solver,
       collisionConfig);
     dynamicsWorld.setGravity(new Ammo.btVector3(0, gravity, 0));
+    dynamicsWorld.getSolverInfo().set_m_numIterations(20);
 
     bodies = {};
     dynamicBodies = {};
@@ -168,12 +168,33 @@ Ammo().then(function(Ammo) {
       controlUpdate(physicsDeltaTime);
     }
     updateView();
+    updateReadout();
     // clearInterval(interval); // UNCOMMENT TO PAUSE ON START
   }
 
   function controlUpdate(dt) {
     skiier.update(dt);
     mouseDrag.apply();
+  }
+
+  function updateReadout() {
+    var content = {
+      l_elbow: skiier.jointControllers.l_elbow.lastState,
+      r_elbow: skiier.jointControllers.r_elbow.lastState,
+      l_shoulder_x: skiier.jointControllers.l_shoulder_x.lastState,
+      l_shoulder_y: skiier.jointControllers.l_shoulder_y.lastState,
+      r_shoulder_x: skiier.jointControllers.r_shoulder_x.lastState,
+      r_shoulder_y: skiier.jointControllers.r_shoulder_y.lastState,
+      neck: skiier.jointControllers.neck.lastState,
+      spine: skiier.jointControllers.spine.lastState,
+      hinge_x: skiier.jointControllers.l_shoulder_x.lastState,
+      hinge_y: skiier.jointControllers.l_shoulder_y.lastState,
+      // hinge_z: skiier.jointControllers.l_shoulder_z.lastState,
+      // x_i: skiier.jointControllers.l_shoulder_x.pid.integral,
+      // y_i: skiier.jointControllers.l_shoulder_y.pid.integral,
+      // z_i: skiier.jointControllers.l_shoulder_z.pid.integral,
+    };
+    postMessage({type: 'info-readout', content});
   }
 
   var interval = null;
@@ -193,8 +214,6 @@ Ammo().then(function(Ammo) {
     }
     else if (data.type === "control-update") {
       skiier.inputControls(data.controls);
-      skiier.joints.l_shoulder.setDamping(4, data.controls.damping);
-      skiier.joints.l_shoulder.setDamping(5, data.controls.damping);
     }
     else if (data.type === "drag-force") {
       if (data.object === null) {
