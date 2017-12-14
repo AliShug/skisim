@@ -50,34 +50,91 @@ var axisOptions = [
 var axisLabels = ['x', 'y', 'z'];
 var defaultPID = [1, 0, 0.1];
 
-class ShoulderController {
-  constructor (joint) {
-    this.target = target;
-    this.joint = joint;
-    this.maxTorque = maxTorque;
-    this.springRange = springRange;
-    this.joint.enableMotor(true);
+class Ski {
+  constructor(dynamicsWorld, body, ground) {
+    this.world = dynamicsWorld;
+    this.body = body;
+    this.ground = ground;
+    this.constraints = [];
+    this.constraintOffsets = [-1, 1];
+    for (var i = 0; i < 2; i++) {
+      this.createSlidingConstraint(this.constraintOffsets[i]);
+    }
+
+    this.time = 0.0;
   }
 
-  setLimit(x, y, z, a, b, c) {
-    this.x_lim = x;
-    this.y_lim = y;
-    this.z_lim = z;
-    this.joint.setLimit(x, y, z, a, b, c);
-  }
-
-  setTarget(x, y, z) {
-
+  createSlidingConstraint(zpos) {
+    // generic constraints - responsible for ground contact behaviour
+    var limitTransform = new Ammo.btTransform();
+    limitTransform.setIdentity();
+    limitTransform.setOrigin(new Ammo.btVector3(0, 0, zpos));
+    var rootTransform = new Ammo.btTransform();
+    rootTransform.setIdentity();
+    var limitConstraint = new Ammo.btGeneric6DofConstraint(
+      this.ground, this.body,
+      rootTransform, limitTransform, true
+    );
+    limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
+    limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+    limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0.05, 1));
+    limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
+    this.world.addConstraint(limitConstraint);
+    this.constraints.push(limitConstraint);
   }
 
   update(dt) {
-    this.joint.setMaxMotorImpulse(0.2);
-    this.joint.setMotorTarget(new Ammo.btQuaternion(0,0,0,1));
+    for (var i = 0; i < 2; i++) {
+      var constraint = this.constraints[i];
+      var start = new Ammo.btVector3(0, 0, this.constraintOffsets[i]);
+      var end = new Ammo.btVector3(0, -5, this.constraintOffsets[i]);
+      var transform = this.body.getCenterOfMassTransform();
+      start.copy(transform.xform(start));
+      end.copy(transform.xform(end));
+      var result = new Ammo.ClosestRayResultCallback(start, end);
+      this.world.rayTest(start, end, result);
+
+      if (result.hasHit()) {
+        // references - can modify in place
+        var frame = constraint.getFrameOffsetA();
+        var basis = frame.getBasis();
+        var hitPoint = result.get_m_hitPointWorld();
+        if (hitPoint.distance(start) > 0.4) {
+          constraint.setEnabled(false);
+        }
+        else {
+          constraint.setEnabled(true);
+        }
+        frame.setOrigin(hitPoint);
+        var n = result.get_m_hitNormalWorld();
+        if (n.y() !== 1) {
+          var y = new Ammo.btVector3(0, 1, 0);
+          var a = n.cross(y).clone();
+          var b = n.cross(a).clone();
+          basis.setValue(b.x(), n.x(), a.x(), b.y(), n.y(), a.y(), b.z(), n.z(), a.z());
+          Ammo.destroy(a);
+          Ammo.destroy(b);
+          Ammo.destroy(y);
+        }
+      }
+      else {
+        constraint.setEnabled(false);
+      }
+      // Woo C++
+      Ammo.destroy(start);
+      Ammo.destroy(end);
+      Ammo.destroy(result);
+    }
+    // this.time += dt;
+    // if (this.time > 1) {
+    //   result.get_m_hitPointWorld().prettyPrint();
+    //   this.time = 0.0;
+    // }
   }
 }
 
 class Skiier {
-  constructor(dynamicsWorld) {
+  constructor(dynamicsWorld, ground) {
     this.bodies = {};
     this.joints = {};
     this.jointControllers = {};
@@ -86,11 +143,16 @@ class Skiier {
     this.rootTransform = new Ammo.btTransform();
     this.setPinned = false;
     this.skiConstraints = {};
+    this.skiis = {};
+    this.ground = ground;
   }
 
   update(dt) {
     for (var jointId in this.jointControllers) {
       this.jointControllers[jointId].update(dt);
+    }
+    for (var skiId in this.skiis) {
+      this.skiis[skiId].update(dt);
     }
   }
 
@@ -154,13 +216,13 @@ class Skiier {
     this.createSki({
       id: "l_foot", x: -p.hipRadial, y: p.ankleLength/2, z:-p.ankleOffset,
       w: p.legUpperThickness, d: p.u*9, h: p.ankleLength,
-      group: 4, collision: 1|2|4,
+      group: 4, collision: 1|4,
       friction: p.skiFriction,
     }, this.rootTransform);
     this.createSki({
       id: "r_foot", x: p.hipRadial, y: p.ankleLength/2, z:-p.ankleOffset,
       w: p.legUpperThickness, d: p.u*9, h: p.ankleLength,
-      group: 4, collision: 1|2|4,
+      group: 4, collision: 1|4,
       friction: p.skiFriction,
     }, this.rootTransform);
     // arms
@@ -492,61 +554,7 @@ class Skiier {
   }
 
   createSki(params, transform = null) {
-    var {
-      id,
-      x=0, y=0, z=0,
-      w=1, d=1, h=1,
-      yaw=0, pitch=0, roll=0,
-      collision=0,
-      group=1,
-      density=1,
-      friction=0.4,
-    } = params;
-    var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(w/2, h/2, d/2));
-    var rotation = new Ammo.btQuaternion();
-    rotation.setEulerZYX(yaw, pitch, roll);
-    var translation = new Ammo.btVector3(x, y, z);
-    if (transform !== null) {
-      translation = translation.op_add(transform.getOrigin());
-    }
-    var startTransform = new Ammo.btTransform(rotation, translation);
-    var mass = w*d*h*1000*density;
-    var localInertia = new Ammo.btVector3(0, 0, 0);
-    boxShape.calculateLocalInertia(mass, localInertia);
-    var myMotionState = new Ammo.btDefaultMotionState(startTransform);
-    var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, boxShape, localInertia);
-    rbInfo.set_m_friction(friction);
-    var body = new Ammo.btRigidBody(rbInfo);
-    body.startMass = mass;
-    body.startInertia = localInertia.clone();
-    this.world.addRigidBody(body, group, collision);
-    this.bodies[id] = body;
-    body.forceActivationState(4); // disable deactivation
-    this.visibles.push({
-      id, x, y, z, w, d, h,
-      ox: rotation.x(), oy: rotation.y(), oz: rotation.z(), ow: rotation.w()
-    });
-    // generic constraints - responsible for ground contact behaviour
-    // rear
-    var limitTransform = new Ammo.btTransform();
-    limitTransform.setIdentity();
-    limitTransform.setOrigin(new Ammo.btVector3(0, 0, 1));
-    var limitConstraint = new Ammo.btGeneric6DofConstraint(body, limitTransform, true);
-    limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
-    limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-    limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0, 1));
-    limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
-    this.world.addConstraint(limitConstraint);
-    // second constraint
-    // front
-    limitTransform = new Ammo.btTransform();
-    limitTransform.setIdentity();
-    limitTransform.setOrigin(new Ammo.btVector3(0, 0, -1));
-    limitConstraint = new Ammo.btGeneric6DofConstraint(body, limitTransform, true);
-    limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
-    limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-    limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0, 1));
-    limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
-    this.world.addConstraint(limitConstraint);
+    this.createBox(params, transform);
+    this.skiis[params.id] = new Ski(this.world, this.bodies[params.id], this.ground);
   }
 }

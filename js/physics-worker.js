@@ -121,7 +121,7 @@ Ammo().then(function(Ammo) {
     resetPhysics();
     loadTerrain(terrainMesh, terrainTransform);
 
-    skiier = new Skiier(dynamicsWorld);
+    skiier = new Skiier(dynamicsWorld, bodies.ground);
     skiier.initSkiier(defaultSkiier, false);
 
     // Register physics objects with the renderer
