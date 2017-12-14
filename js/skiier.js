@@ -26,93 +26,21 @@ p.legUpperThickness = p.u * 0.6;
 p.legLowerThickness = p.u * 0.5;
 p.armUpperThickness = p.u * 0.4;
 p.armLowerThickness = p.u * 0.35;
+// joint settings
+p.kneeLimits = [0, 0.9*Math.PI];
+p.kneeTorque = 0.35;
+p.ankleLimits = [-Math.PI/2, Math.PI/2];
+p.ankleTorque = 1.5;
+p.anklePid = [3, 0, 0.2];
+p.hipTorques = [0.2, 0.4];
+p.spineTorques = [0.2, 0.2];
+p.neckTorque = 0.05;
+p.elbowTorque = 0.05;
+p.shoulderTorques = [0.1, 0.1];
+// skiis!
+p.skiFriction = 0.0;
+
 var defaultSkiier = p;
-
-// General-purpose PID control
-class PIDController {
-  constructor(kp, ki, kd) {
-    this.integral = 0.0;
-    this.last_error = 0.0;
-    this.kp = kp;
-    this.ki = ki;
-    this.kd = kd;
-  }
-
-  setPID(kp, ki, kd) {
-    this.kp = kp;
-    this.ki = ki;
-    this.kd = kd;
-  }
-
-  getUpdate(target, state, dt) {
-    var error = target - state;
-    this.integral += error * dt;
-    var derivative = (error - this.last_error) / dt;
-    this.last_error = error;
-    return this.kp*error + this.ki*this.integral + this.kd*derivative;
-  }
-}
-
-// Hinge joint controller
-// TODO: custom control?
-class HingeController {
-  constructor (joint, maxTorque = 0.1, target = 0.0, flip=false) {
-    this.target = target;
-    this.joint = joint;
-    this.maxTorque = maxTorque;
-    this.pid = new PIDController(0.5, 0.1, 0.1);
-    this.joint.enableAngularMotor(true, 0.0, maxTorque);
-    this.min = -Math.PI;
-    this.max = Math.PI;
-    this.range = 2 * Math.PI;
-    this.lastState = 0;
-    if (flip) {
-      this.forwardVel = 20;
-      this.backVel = -20;
-    }
-    else {
-      this.forwardVel = 20;
-      this.backVel = -20;
-    }
-  }
-
-  setPID(kp, ki, kd) {
-    this.pid.setPID(kp, ki, kd);
-  }
-
-  setLimit(min, max, a, b, c) {
-    this.min = min;
-    this.max = max;
-    this.range = max - min;
-    this.joint.setLimit(min, max, a, b, c);
-  }
-
-  setTarget(target) {
-    this.target = target;
-  }
-
-  update(dt) {
-    // PID control outputs a signed input
-    // Use the input sign to direct to + or - direction of movement
-    // Limit max torque by magnitude of the input
-    // Make sure the torque setting takes effect by using high target velocity
-    var targetAngle = this.min + this.target*this.range;
-    var state = this.joint.getHingeAngle();
-    var input = this.pid.getUpdate(targetAngle, state, dt);
-    var impulse = Math.min(this.maxTorque, Math.abs(input));
-    if (input > 0) {
-      this.joint.enableAngularMotor(true, this.forwardVel, impulse);
-    }
-    else {
-      this.joint.enableAngularMotor(true, this.backVel, impulse);
-    }
-    this.lastState = state;
-    // Servo-like torque limiting
-    // var absError = Math.abs(state - targetAngle);
-    // var torqueCoeff = Math.min(absError/this.springRange, 1);
-    // this.joint.setMaxMotorImpulse(this.maxTorque*torqueCoeff);
-  }
-}
 
 var axisOptions = [
   new Ammo.btVector3(1, 0, 0),
@@ -156,6 +84,8 @@ class Skiier {
     this.world = dynamicsWorld;
     this.visibles = [];
     this.rootTransform = new Ammo.btTransform();
+    this.setPinned = false;
+    this.skiConstraints = {};
   }
 
   update(dt) {
@@ -180,7 +110,7 @@ class Skiier {
     this.jointControllers.l_ankle.setTarget(controls.l_ankle);
     this.jointControllers.r_ankle.setTarget(controls.r_ankle);
     this.jointControllers.neck.setTarget(controls.neck);
-    this.jointControllers.spine.setTarget(controls.spine);
+    this.jointControllers.spine_x.setTarget(controls.spine);
   }
 
   generateBodies(p) {
@@ -221,15 +151,17 @@ class Skiier {
       w: p.legLowerThickness, d: p.legLowerThickness, h: p.legLowerLength,
       group: 8, collision: 1|2|8,
     }, this.rootTransform);
-    this.createBox({
+    this.createSki({
       id: "l_foot", x: -p.hipRadial, y: p.ankleLength/2, z:-p.ankleOffset,
-      w: p.legUpperThickness, d: p.u, h: p.ankleLength,
+      w: p.legUpperThickness, d: p.u*9, h: p.ankleLength,
       group: 4, collision: 1|2|4,
+      friction: p.skiFriction,
     }, this.rootTransform);
-    this.createBox({
+    this.createSki({
       id: "r_foot", x: p.hipRadial, y: p.ankleLength/2, z:-p.ankleOffset,
-      w: p.legUpperThickness, d: p.u, h: p.ankleLength,
+      w: p.legUpperThickness, d: p.u*9, h: p.ankleLength,
       group: 4, collision: 1|2|4,
+      friction: p.skiFriction,
     }, this.rootTransform);
     // arms
     this.createBox({
@@ -277,11 +209,13 @@ class Skiier {
   }
 
   generateJoints(p) {
+    // upper body
     this.createDualCompoundJoint({
       id: 'l_shoulder',
       bodyA: this.bodies.chest, bodyB: this.bodies.l_arm_u,
       pivot: new Ammo.btVector3(-p.shoulderRadial, p.shoulderHeight, 0),
       thickness: p.armUpperThickness,
+      torques: p.shoulderTorques,
     }, this.rootTransform);
     this.createDualCompoundJoint({
       id: 'r_shoulder',
@@ -289,6 +223,7 @@ class Skiier {
       pivot: new Ammo.btVector3(p.shoulderRadial, p.shoulderHeight, 0),
       thickness: p.armUpperThickness,
       flipAxes: [true, true],
+      torques: p.shoulderTorques,
     }, this.rootTransform);
     this.createHinge({
       id: 'l_elbow',
@@ -296,6 +231,7 @@ class Skiier {
       pivot: new Ammo.btVector3(-p.shoulderRadial-p.armUpperLength, p.shoulderHeight, 0),
       limits: [0, 0.9*Math.PI],
       axis: 2,
+      torque: p.elbowTorque,
     }, this.rootTransform);
     this.createHinge({
       id: 'r_elbow',
@@ -303,20 +239,24 @@ class Skiier {
       pivot: new Ammo.btVector3(p.shoulderRadial+p.armUpperLength, p.shoulderHeight, 0),
       limits: [0, 0.9*Math.PI],
       axis: 2, flipAxis: true,
+      torque: p.elbowTorque,
     }, this.rootTransform);
-    this.createHinge({
+    this.createDualCompoundJoint({
       id: 'spine',
       bodyA: this.bodies.chest, bodyB: this.bodies.gut,
       pivot: new Ammo.btVector3(0, p.gutHeight+p.gutLength/2, p.u/6),
-      limits: [-Math.PI/4, Math.PI/6],
-      axis: 0,
+      limits: [[-Math.PI/4, Math.PI/6], [-Math.PI/4, Math.PI/4]],
+      axes: [0, 2],
+      thickness: p.u/2,
+      torques: p.spineTorques,
     }, this.rootTransform);
     this.createHinge({
       id: 'neck',
       bodyA: this.bodies.chest, bodyB: this.bodies.head,
       pivot: new Ammo.btVector3(0, p.shoulderHeight+p.neckLength/2, p.u/6),
       limits: [-Math.PI/6, Math.PI/6],
-      axis: 0,
+      axis: 0, flipAxis: true,
+      torque: p.neckTorque,
     }, this.rootTransform);
 
     // pin hands to lower arms
@@ -340,6 +280,7 @@ class Skiier {
       pivot: new Ammo.btVector3(-p.hipRadial, p.hipHeight, 0),
       thickness: p.legUpperThickness,
       axes: [1, 0],
+      torques: p.hipTorques,
     }, this.rootTransform);
     this.createDualCompoundJoint({
       id: 'r_hip',
@@ -347,49 +288,58 @@ class Skiier {
       pivot: new Ammo.btVector3(p.hipRadial, p.hipHeight, 0),
       thickness: p.legUpperThickness,
       axes: [1, 0],
-      flipAxes: [true, true],
+      torques: p.hipTorques,
     }, this.rootTransform);
     this.createHinge({
       id: 'l_knee',
       bodyA: this.bodies.l_leg_u, bodyB: this.bodies.l_leg_l,
       pivot: new Ammo.btVector3(-p.hipRadial, p.hipHeight-p.legUpperLength, 0),
-      limits: [0, 0.9*Math.PI],
+      limits: p.kneeLimits,
       axis: 0, flipAxis: true,
+      torque: p.kneeTorque,
     }, this.rootTransform);
     this.createHinge({
       id: 'r_knee',
       bodyA: this.bodies.r_leg_u, bodyB: this.bodies.r_leg_l,
       pivot: new Ammo.btVector3(p.hipRadial, p.hipHeight-p.legUpperLength, 0),
-      limits: [0, 0.9*Math.PI],
+      limits: p.kneeLimits,
       axis: 0, flipAxis: true,
+      torque: p.kneeTorque,
     }, this.rootTransform);
     this.createHinge({
       id: 'l_ankle',
       bodyA: this.bodies.l_leg_l, bodyB: this.bodies.l_foot,
       pivot: new Ammo.btVector3(-p.hipRadial, p.hipHeight-p.legUpperLength-p.legLowerLength, 0),
-      limits: [0, 0.9*Math.PI],
+      limits: p.ankleLimits,
       axis: 0, flipAxis: true,
+      torque: p.ankleTorque, pid: p.anklePid,
     }, this.rootTransform);
     this.createHinge({
       id: 'r_ankle',
       bodyA: this.bodies.r_leg_l, bodyB: this.bodies.r_foot,
       pivot: new Ammo.btVector3(p.hipRadial, p.hipHeight-p.legUpperLength-p.legLowerLength, 0),
-      limits: [0, 0.9*Math.PI],
+      limits: p.ankleLimits,
       axis: 0, flipAxis: true,
+      torque: p.ankleTorque, pid: p.anklePid,
     }, this.rootTransform);
   }
 
   // Returns array of rigid body descriptions to be passed to the render thread
   initSkiier(p, pinned = false) {
     this.rootTransform.setIdentity();
-    this.rootTransform.setOrigin(new Ammo.btVector3(0, 5, 0));
+    this.rootTransform.setOrigin(new Ammo.btVector3(0, 4, 0));
 
     this.generateBodies(p);
     this.generateJoints(p);
 
     // setting mass=0 creates a static body - pins the character in place
     if (pinned) {
-      this.bodies.chest.setMassProps(0, new Ammo.btVector3(0,0,0));
+      this.setPinned = true;
+      this.bodies.l_foot.makeStatic();
+      this.bodies.r_foot.makeStatic();
+    }
+    else {
+      this.setPinned = false;
     }
   }
 
@@ -402,6 +352,7 @@ class Skiier {
       collision=-1,
       group=1,
       density=1,
+      friction=0.4,
     } = params;
     var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(w/2, h/2, d/2));
     var rotation = new Ammo.btQuaternion();
@@ -416,7 +367,10 @@ class Skiier {
     boxShape.calculateLocalInertia(mass, localInertia);
     var myMotionState = new Ammo.btDefaultMotionState(startTransform);
     var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, boxShape, localInertia);
+    rbInfo.set_m_friction(friction);
     var body = new Ammo.btRigidBody(rbInfo);
+    body.startMass = mass;
+    body.startInertia = localInertia.clone();
     this.world.addRigidBody(body, group, collision);
     this.bodies[id] = body;
     body.forceActivationState(4); // disable deactivation
@@ -491,7 +445,9 @@ class Skiier {
       flipAxes = [false, false],
     } = params;
 
+    var loc;
     if (transform !== null) {
+      loc = pivot.clone();
       pivot.copy(transform.xform(pivot));
     }
 
@@ -502,7 +458,7 @@ class Skiier {
     var pivotB = xformB.invXform(pivot).clone();
     // interim object
     this.createBox({
-      id: id+'_c', x: pivot.x(), y: pivot.y(), z: pivot.z(),
+      id: id+'_c', x: loc.x(), y: loc.y(), z: loc.z(),
       w: thickness, d: thickness, h: thickness, collision: 0,
       density: 0.5,
     }, transform);
@@ -533,5 +489,64 @@ class Skiier {
       this.joints[id+'_'+axisLabels[i]] = joint;
       this.world.addConstraint(joint);
     }
+  }
+
+  createSki(params, transform = null) {
+    var {
+      id,
+      x=0, y=0, z=0,
+      w=1, d=1, h=1,
+      yaw=0, pitch=0, roll=0,
+      collision=0,
+      group=1,
+      density=1,
+      friction=0.4,
+    } = params;
+    var boxShape = new Ammo.btBoxShape(new Ammo.btVector3(w/2, h/2, d/2));
+    var rotation = new Ammo.btQuaternion();
+    rotation.setEulerZYX(yaw, pitch, roll);
+    var translation = new Ammo.btVector3(x, y, z);
+    if (transform !== null) {
+      translation = translation.op_add(transform.getOrigin());
+    }
+    var startTransform = new Ammo.btTransform(rotation, translation);
+    var mass = w*d*h*1000*density;
+    var localInertia = new Ammo.btVector3(0, 0, 0);
+    boxShape.calculateLocalInertia(mass, localInertia);
+    var myMotionState = new Ammo.btDefaultMotionState(startTransform);
+    var rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, boxShape, localInertia);
+    rbInfo.set_m_friction(friction);
+    var body = new Ammo.btRigidBody(rbInfo);
+    body.startMass = mass;
+    body.startInertia = localInertia.clone();
+    this.world.addRigidBody(body, group, collision);
+    this.bodies[id] = body;
+    body.forceActivationState(4); // disable deactivation
+    this.visibles.push({
+      id, x, y, z, w, d, h,
+      ox: rotation.x(), oy: rotation.y(), oz: rotation.z(), ow: rotation.w()
+    });
+    // generic constraints - responsible for ground contact behaviour
+    // rear
+    var limitTransform = new Ammo.btTransform();
+    limitTransform.setIdentity();
+    limitTransform.setOrigin(new Ammo.btVector3(0, 0, 1));
+    var limitConstraint = new Ammo.btGeneric6DofConstraint(body, limitTransform, true);
+    limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
+    limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+    limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0, 1));
+    limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
+    this.world.addConstraint(limitConstraint);
+    // second constraint
+    // front
+    limitTransform = new Ammo.btTransform();
+    limitTransform.setIdentity();
+    limitTransform.setOrigin(new Ammo.btVector3(0, 0, -1));
+    limitConstraint = new Ammo.btGeneric6DofConstraint(body, limitTransform, true);
+    limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
+    limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+    limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0, 1));
+    limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
+    this.world.addConstraint(limitConstraint);
   }
 }

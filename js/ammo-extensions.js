@@ -21,3 +21,14 @@ Ammo.btTransform.prototype.xform = function (pt) {
   var myInverse = this.inverse();
   return myInverse.invXform(pt);
 };
+
+Ammo.btRigidBody.prototype.startMass = 0.0;
+Ammo.btRigidBody.prototype.startInertia = null;
+
+Ammo.btRigidBody.prototype.makeStatic = function () {
+  this.setMassProps(0, new Ammo.btVector3(0, 0, 0));
+};
+
+Ammo.btRigidBody.prototype.makeDynamic = function () {
+  this.setMassProps(this.startMass, this.startInertia);
+};

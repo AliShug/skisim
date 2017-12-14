@@ -177,28 +177,25 @@ var followCamera = false;
 ///// User interface
 var controlData = {
   reset: function () {
-    physicsWorker.postMessage({type: "reset"});
-  },
-  toggle: function () {
-    physicsWorker.postMessage({type: "toggle"});
+    physicsWorker.postMessage({type: "reset", controls: getControlData()});
   },
   "Follow-camera": function () {
     followCamera = !followCamera;
   },
-  l_shoulder_x: 0.5,
-  l_shoulder_y: 0.5,
-  r_shoulder_x: 0.5,
-  r_shoulder_y: 0.5,
+  l_shoulder_x: 0.18,
+  r_shoulder_x: 0.18,
+  l_shoulder_y: 0.8,
+  r_shoulder_y: 0.8,
   l_elbow: 0.1,
   r_elbow: 0.1,
   l_hip_x: 0.5,
   l_hip_y: 0.5,
   r_hip_x: 0.5,
   r_hip_y: 0.5,
-  l_knee: 0.5,
-  r_knee: 0.5,
-  l_ankle: 0.5,
-  r_ankle: 0.5,
+  l_knee: 0.05,
+  r_knee: 0.05,
+  l_ankle: 0.4,
+  r_ankle: 0.4,
   neck: 0.5,
   spine: 0.5,
 };
@@ -222,7 +219,6 @@ gui.add(controlData, 'r_ankle', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'neck', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'spine', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'reset');
-gui.add(controlData, 'toggle');
 gui.add(controlData, 'Follow-camera');
 
 // output gui
@@ -235,27 +231,31 @@ debugReadout.setAttribute(
   'position:absolute;z-index:1000;left: 0;top: 0;margin-left: 10px;padding: 5px;font-size: small;'
 );
 
+function getControlData() {
+  return {
+    l_elbow: controlData.l_elbow,
+    r_elbow: controlData.r_elbow,
+    l_shoulder_x: controlData.l_shoulder_x,
+    l_shoulder_y: controlData.l_shoulder_y,
+    r_shoulder_x: controlData.r_shoulder_x,
+    r_shoulder_y: controlData.r_shoulder_y,
+    l_hip_x: controlData.l_hip_x,
+    l_hip_y: controlData.l_hip_y,
+    r_hip_x: controlData.r_hip_x,
+    r_hip_y: controlData.r_hip_y,
+    l_knee: controlData.l_knee,
+    r_knee: controlData.r_knee,
+    l_ankle: controlData.l_ankle,
+    r_ankle: controlData.r_ankle,
+    neck: controlData.neck,
+    spine: controlData.spine,
+  };
+}
+
 function postControlUpdate() {
   physicsWorker.postMessage({
     type: "control-update",
-    controls: {
-      l_elbow: controlData.l_elbow,
-      r_elbow: controlData.r_elbow,
-      l_shoulder_x: controlData.l_shoulder_x,
-      l_shoulder_y: controlData.l_shoulder_y,
-      r_shoulder_x: controlData.r_shoulder_x,
-      r_shoulder_y: controlData.r_shoulder_y,
-      // l_hip_x: controlData.l_hip_x,
-      // l_hip_y: controlData.l_hip_y,
-      // r_hip_x: controlData.r_hip_x,
-      // r_hip_y: controlData.r_hip_y,
-      // l_knee: controlData.l_knee,
-      // r_knee: controlData.r_knee,
-      // l_ankle: controlData.l_ankle,
-      // r_ankle: controlData.r_ankle,
-      neck: controlData.neck,
-      spine: controlData.spine,
-    }
+    controls: getControlData(),
   });
 }
 
@@ -270,7 +270,8 @@ loader.load(
     terrain.receiveShadow = true;
     scene.add(terrain);
 
-    physicsWorker.postMessage({type: "start-up", terrain: geometry});
+    physicsWorker.postMessage({type: "start-up", terrain: geometry, controls: getControlData()});
+    postControlUpdate();
   }
 );
 

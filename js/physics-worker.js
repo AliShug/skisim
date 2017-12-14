@@ -2,16 +2,17 @@
 
 importScripts('ammo.js');
 
+var solverSteps = 10;
 var physicsDeltaTime = 1/1500;
 var physicsStepsPerUpdate = 20;
+// var physicsStepsPerUpdate = 1;
 // var physicsDeltaTime = 1/500;
 // var physicsStepsPerUpdate = 7;
 var gravity = -9.81;
 
 // Ammo must be loaded for any of the rest of this to make sense
 Ammo().then(function(Ammo) {
-  importScripts('ammo-extensions.js');
-  importScripts('skiier.js');
+  importScripts('ammo-extensions.js', 'controllers.js', 'skiier.js');
 
   var mouseDragTransform = new Ammo.btTransform();
   class MouseDrag {
@@ -55,6 +56,7 @@ Ammo().then(function(Ammo) {
   var mouseDrag = new MouseDrag();
   var skiier = null;
   var savedTerrainMesh = null;
+  var savedTerrainTransform = null;
 
   function resetPhysics() {
     if (dynamicsWorld !== null) {
@@ -78,14 +80,14 @@ Ammo().then(function(Ammo) {
       solver,
       collisionConfig);
     dynamicsWorld.setGravity(new Ammo.btVector3(0, gravity, 0));
-    dynamicsWorld.getSolverInfo().set_m_numIterations(20);
+    dynamicsWorld.getSolverInfo().set_m_numIterations(solverSteps);
 
     bodies = {};
     dynamicBodies = {};
     joints = {};
   }
 
-  function loadTerrain(terrainMesh = null) {
+  function loadTerrain(terrainMesh = null, transform = null) {
     if (terrainMesh !== null) {
       savedTerrainMesh = new Ammo.btTriangleMesh();
       for (var i = 0; i < terrainMesh.faces.length; i++) {
@@ -100,24 +102,27 @@ Ammo().then(function(Ammo) {
       }
     }
     var groundShape = new Ammo.btBvhTriangleMeshShape(savedTerrainMesh, true);
-    var groundTransform = new Ammo.btTransform();
-    groundTransform.setIdentity();
+    var groundTransform;
+    if (transform === null) {
+      transform = new Ammo.btTransform();
+      transform.setIdentity();
+    }
     var mass = 0;
     var localInertia = new Ammo.btVector3(0,0,0);
-    var myMotionState = new Ammo.btDefaultMotionState(groundTransform);
+    var myMotionState = new Ammo.btDefaultMotionState(transform);
     var rbInfo = new Ammo.btRigidBodyConstructionInfo(0, myMotionState, groundShape, localInertia);
     var body = new Ammo.btRigidBody(rbInfo);
     dynamicsWorld.addRigidBody(body);
     bodies.ground = body;
   }
 
-  function startUp(terrainMesh = null) {
+  function startUp(terrainMesh = null, terrainTransform = null) {
     // Register the terrain's geometry with the physics engine
     resetPhysics();
-    loadTerrain(terrainMesh);
+    loadTerrain(terrainMesh, terrainTransform);
 
     skiier = new Skiier(dynamicsWorld);
-    skiier.initSkiier(defaultSkiier, true);
+    skiier.initSkiier(defaultSkiier, false);
 
     // Register physics objects with the renderer
     postMessage({
@@ -186,10 +191,16 @@ Ammo().then(function(Ammo) {
       r_shoulder_x: skiier.jointControllers.r_shoulder_x.lastState,
       r_shoulder_y: skiier.jointControllers.r_shoulder_y.lastState,
       neck: skiier.jointControllers.neck.lastState,
-      spine: skiier.jointControllers.spine.lastState,
-      hinge_x: skiier.jointControllers.l_shoulder_x.lastState,
-      hinge_y: skiier.jointControllers.l_shoulder_y.lastState,
-      // hinge_z: skiier.jointControllers.l_shoulder_z.lastState,
+      spine_x: skiier.jointControllers.spine_x.lastState,
+      spine_y: skiier.jointControllers.spine_y.lastState,
+      l_hip_x: skiier.jointControllers.l_hip_x.lastState,
+      l_hip_y: skiier.jointControllers.l_hip_y.lastState,
+      r_hip_x: skiier.jointControllers.r_hip_x.lastState,
+      r_hip_y: skiier.jointControllers.r_hip_y.lastState,
+      l_knee: skiier.jointControllers.l_knee.lastState,
+      r_knee: skiier.jointControllers.r_knee.lastState,
+      l_ankle: skiier.jointControllers.l_ankle.lastState,
+      r_ankle: skiier.jointControllers.r_ankle.lastState,
       // x_i: skiier.jointControllers.l_shoulder_x.pid.integral,
       // y_i: skiier.jointControllers.l_shoulder_y.pid.integral,
       // z_i: skiier.jointControllers.l_shoulder_z.pid.integral,
@@ -203,11 +214,12 @@ Ammo().then(function(Ammo) {
     var data = event.data;
     if (data.type === "start-up" || data.type === "reset") {
       if ("terrain" in event.data) {
-        startUp(event.data.terrain);
+        startUp(event.data.terrain, event.data.terrainTransform);
       }
       else {
         startUp();
       }
+      skiier.inputControls(event.data.controls);
 
       if (interval) clearInterval(interval);
       interval = setInterval(mainLoop, 1000/60);

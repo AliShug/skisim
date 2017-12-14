@@ -9,6 +9,7 @@
         "js/ammo.js",
         "js/dat.gui.js",
         "js/ammo_extensions.js",
+        "js/controllers.js",
         "js/skiier.js",
     ]
 }
