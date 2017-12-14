@@ -1,5 +1,36 @@
 /*jshint esversion:6*/
 
+class SkiierController {
+  constructor(skiier) {
+    this.skiier = skiier;
+    this.controls = {};
+    this.controllers = skiier.jointControllers;
+  }
+
+  setInput(controls) {
+    this.controls = controls;
+  }
+
+  update(dt) {
+    this.controllers.l_hip_x.setTarget(controls.l_hip_x);
+    this.controllers.r_hip_x.setTarget(controls.r_hip_x);
+    this.controllers.l_hip_y.setTarget(controls.l_hip_y);
+    this.controllers.r_hip_y.setTarget(controls.r_hip_y);
+    this.controllers.l_knee.setTarget(controls.l_knee);
+    this.controllers.r_knee.setTarget(controls.r_knee);
+    this.controllers.l_ankle.setTarget(controls.l_ankle);
+    this.controllers.r_ankle.setTarget(controls.r_ankle);
+    this.controllers.neck.setTarget(controls.neck);
+    this.controllers.spine_x.setTarget(controls.spine);
+    this.controllers.l_elbow.setTarget(controls.l_elbow);
+    this.controllers.r_elbow.setTarget(controls.r_elbow);
+    this.controllers.l_shoulder_x.setTarget(controls.l_shoulder_x);
+    this.controllers.l_shoulder_y.setTarget(controls.l_shoulder_y);
+    this.controllers.r_shoulder_x.setTarget(controls.r_shoulder_x);
+    this.controllers.r_shoulder_y.setTarget(controls.r_shoulder_y);
+  }
+}
+
 // General-purpose PID control
 class PIDController {
   constructor(kp, ki, kd) {

@@ -2,9 +2,9 @@
 
 importScripts('ammo.js');
 
-var solverSteps = 10;
-var physicsDeltaTime = 1/1500;
-var physicsStepsPerUpdate = 20;
+var solverSteps = 20;
+var physicsDeltaTime = 1/800;
+var physicsStepsPerUpdate = 10;
 // var physicsStepsPerUpdate = 1;
 // var physicsDeltaTime = 1/500;
 // var physicsStepsPerUpdate = 7;

@@ -3,7 +3,7 @@
 var terrainFile = 'terrain_smooth_v1.json';
 
 class PhysicsDragController {
-  constructor(domElement, cameraControls, strength=5.0) {
+  constructor(domElement, cameraControls, strength=250.0) {
     this.mouse = new THREE.Vector2();
     this.targetObjectId = null;
     this.raycaster = new THREE.Raycaster();
@@ -81,10 +81,9 @@ class PhysicsDragController {
   }
 
   onClick(e) {
-    if (e.shiftKey && e.button === 0) {
+    if (e.button === 0) {
       var x = e.clientX;
       var y = e.clientY;
-      this.cameraControls.enabled = false;
       var screen = renderer.getSize();
       this.mouse.x = (x / screen.width) * 2 - 1;
       this.mouse.y = (-y / screen.height) * 2 + 1;
@@ -93,6 +92,7 @@ class PhysicsDragController {
       var objects = Object.values(shapes);
       var intersects = this.raycaster.intersectObjects(objects);
       if (intersects.length > 0) {
+        this.cameraControls.enabled = false;
         var intersection = intersects[0];
         this.startDrag(intersection.object, intersection.point);
       }
@@ -172,7 +172,7 @@ scene.add(testLight);
 camera.position.set(0.5, 7, -3);
 orbitControls.target.set(0, 6, 0);
 orbitControls.update();
-var followCamera = false;
+var followCamera = true;
 
 ///// User interface
 var controlData = {
@@ -182,6 +182,9 @@ var controlData = {
   "Follow-camera": function () {
     followCamera = !followCamera;
   },
+  "Drag strength": 250,
+  "Forward lean": 0.2,
+  "Stand": 0.2,
   l_shoulder_x: 0.18,
   r_shoulder_x: 0.18,
   l_shoulder_y: 0.8,
@@ -189,33 +192,29 @@ var controlData = {
   l_elbow: 0.1,
   r_elbow: 0.1,
   l_hip_x: 0.5,
-  l_hip_y: 0.5,
   r_hip_x: 0.5,
+  l_hip_y: 0.5,
   r_hip_y: 0.5,
-  l_knee: 0.05,
-  r_knee: 0.05,
-  l_ankle: 0.4,
-  r_ankle: 0.4,
+  l_knee: 0.4,
+  r_knee: 0.4,
+  l_ankle: 0.37,
+  r_ankle: 0.37,
   neck: 0.5,
   spine: 0.5,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
-gui.add(dragControls, 'strength', 0.0, 250.0);
+gui.add(controlData, 'Drag strength', 0.0, 1000.0).onChange(function () {
+  dragControls.strength = controlData['Drag strength'];
+});
+gui.add(controlData, 'Forward lean', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'Stand', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'l_shoulder_x', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'l_shoulder_y', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'r_shoulder_x', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'r_shoulder_y', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'l_elbow', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'r_elbow', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_hip_x', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_hip_y', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_hip_x', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_hip_y', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_knee', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_knee', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_ankle', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_ankle', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'neck', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'spine', 0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'reset');
@@ -264,7 +263,7 @@ var loader = new THREE.JSONLoader();
 loader.load(
   'assets/' + terrainFile,
   function (geometry, materials) {
-    var material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+    var material = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.9 });
     var terrain = new THREE.Mesh(geometry, material);
     terrain.castShadow = true;
     terrain.receiveShadow = true;

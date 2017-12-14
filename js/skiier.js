@@ -15,7 +15,7 @@ p.gutHeight = p.h - p.u * 3.1;
 p.gutLength = p.u;
 p.headHeight = p.h - p.u / 2;
 p.neckLength = (p.h - p.u) - p.shoulderHeight;
-p.hipRadial = p.u * 0.7;
+p.hipRadial = p.u * 0.65;
 p.legUpperLength = p.u * 1.75;
 p.legLowerLength = p.legUpperLength;
 p.ankleLength = p.u / 3;
@@ -28,12 +28,13 @@ p.armUpperThickness = p.u * 0.4;
 p.armLowerThickness = p.u * 0.35;
 // joint settings
 p.kneeLimits = [0, 0.9*Math.PI];
-p.kneeTorque = 0.35;
+p.kneeTorque = 0.6;
 p.ankleLimits = [-Math.PI/2, Math.PI/2];
 p.ankleTorque = 1.5;
 p.anklePid = [3, 0, 0.2];
-p.hipTorques = [0.2, 0.4];
-p.spineTorques = [0.2, 0.2];
+p.hipTorques = [0.4, 0.6];
+p.hipLimits = [[-Math.PI/4, Math.PI/4], [-0.1*Math.PI, 0.7*Math.PI]];
+p.spineTorques = [0.4, 0.4];
 p.neckTorque = 0.05;
 p.elbowTorque = 0.05;
 p.shoulderTorques = [0.1, 0.1];
@@ -341,6 +342,7 @@ class Skiier {
       bodyA: this.bodies.gut, bodyB: this.bodies.l_leg_u,
       pivot: new Ammo.btVector3(-p.hipRadial, p.hipHeight, 0),
       thickness: p.legUpperThickness,
+      limits: p.hipLimits,
       axes: [1, 0],
       torques: p.hipTorques,
     }, this.rootTransform);
@@ -349,6 +351,7 @@ class Skiier {
       bodyA: this.bodies.gut, bodyB: this.bodies.r_leg_u,
       pivot: new Ammo.btVector3(p.hipRadial, p.hipHeight, 0),
       thickness: p.legUpperThickness,
+      limits: p.hipLimits,
       axes: [1, 0],
       torques: p.hipTorques,
     }, this.rootTransform);
