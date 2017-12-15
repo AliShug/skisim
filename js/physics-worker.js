@@ -4,13 +4,15 @@ importScripts('ammo.js');
 
 var solverSteps = 100;
 var physicsDeltaTime = 1/800;
-var physicsStepsPerUpdate = 10;
+var physicsStepsPerUpdate = 13;
 // var physicsStepsPerUpdate = 1;
 // var physicsDeltaTime = 1/500;
 // var physicsStepsPerUpdate = 7;
 var gravity = -9.81;
 // var gravity = -0.5;
 var startPinned = false;
+
+var simulationTime = 0.0;
 
 // Ammo must be loaded for any of the rest of this to make sense
 Ammo().then(function(Ammo) {
@@ -61,6 +63,7 @@ Ammo().then(function(Ammo) {
   var savedTerrainTransform = null;
 
   function resetPhysics() {
+    simulationTime = 0.0;
     if (dynamicsWorld !== null) {
       for (var id in dynamicBodies) {
         Ammo.destroy(dynamicBodies[id]);
@@ -174,6 +177,7 @@ Ammo().then(function(Ammo) {
       controlUpdate(physicsDeltaTime);
       simulate(physicsDeltaTime);
       postUpdate(physicsDeltaTime);
+      simulationTime += physicsDeltaTime;
     }
     updateView();
     updateReadout();
@@ -191,6 +195,7 @@ Ammo().then(function(Ammo) {
 
   function updateReadout() {
     var content = {
+      TIME: simulationTime,
       l_elbow: skiier.jointControllers.l_elbow.lastState,
       r_elbow: skiier.jointControllers.r_elbow.lastState,
       l_shoulder_x: skiier.jointControllers.l_shoulder_x.lastState,

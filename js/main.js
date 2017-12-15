@@ -1,6 +1,6 @@
 /*jshint esversion:6*/
 
-var terrainFile = 'terrain_smooth_v1.json';
+var terrainFile = 'terrain_wide.json';
 var characterColor = 0xa0a0ff;
 var skiisColor = 0xcccccc;
 
@@ -150,15 +150,15 @@ window.addEventListener('resize', onResize, false);
 
 var ambient = new THREE.AmbientLight(0xffffff, 1.2);
 var sun = new THREE.DirectionalLight(0xffffff, 5.0);
-sun.position.set(40,35,-45);
+sun.position.set(80,70,-90);
 sun.castShadow = true;
-var shadowMapRadius = 50;
+var shadowMapRadius = 300;
 sun.shadow.camera.left = -shadowMapRadius;
 sun.shadow.camera.right = shadowMapRadius;
 sun.shadow.camera.top = shadowMapRadius;
 sun.shadow.camera.bottom = -shadowMapRadius;
-sun.shadow.camera.far = 150;
-sun.shadow.camera.near = 20;
+sun.shadow.camera.far = 500;
+sun.shadow.camera.near = 1;
 sun.shadow.mapSize.width = 8192;
 sun.shadow.mapSize.height = 8192;
 sun.shadow.radius = 1;
@@ -167,14 +167,28 @@ sun.shadow.bias = -0.001;
 scene.add(sun);
 scene.add(ambient);
 
-var testLight = new THREE.PointLight(0x3030ff, 8.0, 10, 2);
-testLight.position.set(0,2,4);
+var testLight = new THREE.PointLight(0xc0c0ff, 50.0, 300, 1);
+testLight.position.set(0,10,-20);
 scene.add(testLight);
 
 camera.position.set(0.5, 7, -3);
 orbitControls.target.set(0, 6, 0);
 orbitControls.update();
 var followCamera = true;
+var keyboardState = {};
+
+///// Keyboard state watching
+window.onkeydown = function(e) {
+  e = e || window.event;
+  keyboardState[e.keyCode] = true;
+  postControlUpdate();
+};
+
+window.onkeyup = function(e) {
+  e = e || window.event;
+  delete keyboardState[e.keyCode];
+  postControlUpdate();
+};
 
 ///// User interface
 var controlData = {
@@ -224,6 +238,7 @@ function getControlData() {
     side_lean: controlData['Side lean'],
     plough: controlData.Plough,
     twist: controlData.Twist,
+    keys: keyboardState,
   };
 }
 

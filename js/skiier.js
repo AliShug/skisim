@@ -115,119 +115,6 @@ class Ski {
     Ammo.destroy(axleCS);
     Ammo.destroy(directionCS0);
   }
-
-  // createSlidingConstraint(x, z) {
-  //   // generic constraints - responsible for ground contact behaviour
-  //   var limitTransform = new Ammo.btTransform();
-  //   limitTransform.setIdentity();
-  //   limitTransform.setOrigin(new Ammo.btVector3(x, 0, z));
-  //   var rootTransform = new Ammo.btTransform();
-  //   rootTransform.setIdentity();
-  //   var limitConstraint = new Ammo.btGeneric6DofConstraint(
-  //     this.ground, this.body,
-  //     rootTransform, limitTransform, true
-  //   );
-  //   limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
-  //   limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-  //   limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0.05, 1));
-  //   limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
-  //   this.world.addConstraint(limitConstraint);
-  //   limitConstraint.enableFeedback(true);
-  //   this.constraints.push(limitConstraint);
-  // }
-
-  // update(dt) {
-    // var transform = this.body.getCenterOfMassTransform();
-    //
-    // for (var i = 0; i < 4; i++) {
-    //   var constraint = this.constraints[i];
-    //   var offset = this.constraintOffsets[i];
-    //   var start = new Ammo.btVector3(offset[0]*this.xoffset, 0, offset[1]*this.zoffset);
-    //   // Rays extend diagonally out and down at all 4 corners
-    //   var end = new Ammo.btVector3(
-    //     offset[0]*this.xoffset + offset[0]*5,
-    //     -5,
-    //     offset[1]*this.zoffset + offset[1]*5
-    //   );
-    //   start.copy(transform.xform(start));
-    //   end.copy(transform.xform(end));
-    //   var result = new Ammo.ClosestRayResultCallback(start, end);
-    //   this.world.rayTest(start, end, result);
-    //
-    //   if (result.hasHit()) {
-    //     // references - can modify in place
-    //     var frame = constraint.getFrameOffsetA();
-    //     var basis = frame.getBasis();
-    //     var hitPoint = result.get_m_hitPointWorld();
-    //     if (hitPoint.distance(start) > 0.4) {
-    //       constraint.setEnabled(false);
-    //     }
-    //     else {
-    //       constraint.setEnabled(true);
-    //     }
-    //     var n = result.get_m_hitNormalWorld();
-    //     this.contactNormals[i].copy(n); // store normal for friction calculations
-    //     if (n.y() !== 1) {
-    //       var y = new Ammo.btVector3(0, 1, 0);
-    //       var a = n.cross(y).clone();
-    //       var b = n.cross(a).clone();
-    //       basis.setValue(b.x(), n.x(), a.x(), b.y(), n.y(), a.y(), b.z(), n.z(), a.z());
-    //       Ammo.destroy(a);
-    //       Ammo.destroy(b);
-    //       Ammo.destroy(y);
-    //     }
-    //     else {
-    //       frame.setIdentity();
-    //     }
-    //     frame.setOrigin(hitPoint);
-    //   }
-    //   else {
-    //     constraint.setEnabled(false);
-    //   }
-    //   // Woo C++
-    //   Ammo.destroy(start);
-    //   Ammo.destroy(end);
-    //   Ammo.destroy(result);
-    // }
-    // this.time += dt;
-    // if (this.time > 1) {
-    //   result.get_m_hitPointWorld().prettyPrint();
-    //   this.time = 0.0;
-    // }
-  // }
-
-  // postUpdate(dt) {
-  //   var transform = this.body.getCenterOfMassTransform();
-  //   // Check the contact forces and apply corresponding friction forces
-  //   var coeff = 0.2;
-  //   for (var i = 0; i < 4; i++) {
-  //     var constraint = this.constraints[i];
-  //     if (constraint.isEnabled()) {
-  //       var offset = this.constraintOffsets[i];
-  //       var pt = new Ammo.btVector3(offset[0]*this.xoffset, 0, offset[1]*this.zoffset);
-  //       var relPt = transform.xform(pt, true).clone();
-  //       var vel = this.body.getVelocityInLocalPoint(relPt).clone();
-  //       var normal = this.contactNormals[i];
-  //       if (vel.dot(normal) > 0) {
-  //         // A surface-parallel velocity exists
-  //         var contactForce = -constraint.getAppliedImpulse()/dt;
-  //         var surfaceVel = normal.cross(vel).clone();
-  //         surfaceVel.copy(normal.cross(surfaceVel));
-  //         surfaceVel.normalize();
-  //         if (contactForce > 0) {
-  //           var mag = 10*vel.dot(surfaceVel);
-  //           // console.log(mag);
-  //           surfaceVel.op_mul(mag);
-  //           this.body.applyForce(surfaceVel, relPt);
-  //         }
-  //         Ammo.destroy(surfaceVel);
-  //       }
-  //       Ammo.destroy(pt);
-  //       Ammo.destroy(relPt);
-  //       Ammo.destroy(vel);
-  //     }
-  //   }
-  // }
 }
 
 class Skiier {
@@ -252,10 +139,6 @@ class Skiier {
     for (var jointId in this.jointControllers) {
       this.jointControllers[jointId].update(dt);
     }
-    // Ski's contact raycasting and constraint/force updates)
-    // for (var skiId in this.skiis) {
-    //   this.skiis[skiId].update(dt);
-    // }
   }
 
   postUpdate(dt) {
@@ -503,7 +386,7 @@ class Skiier {
   // Returns array of rigid body descriptions to be passed to the render thread
   initSkiier(p, pinned = false) {
     this.rootTransform.setIdentity();
-    var translation = new Ammo.btVector3(0, 4, 0);
+    var translation = new Ammo.btVector3(0, 5, -2);
     this.rootTransform.setOrigin(translation);
     Ammo.destroy(translation);
 

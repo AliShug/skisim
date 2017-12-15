@@ -19,6 +19,23 @@ class SkiierController {
     var side_lean = this.controls.side_lean;
     var twist = (this.controls.twist - 0.5);
     var plough = -(this.controls.plough - 0.5);
+    // keyboard state input
+    var keys = this.controls.keys;
+    if (32 in keys) { // space
+      squat = 1.0;
+    }
+    if (65 in keys) { // A
+      side_lean -= 0.3;
+    }
+    if (68 in keys) { // D
+      side_lean += 0.3;
+    }
+    if (87 in keys) { // W
+      front_lean += 0.3;
+    }
+    if (83 in keys) { // S
+      front_lean -= 0.3;
+    }
     // joint control
     var hip_lean = 0.26 + squat*0.75 + (front_lean - 0.5) * 0.3; // forward lean at the hips
     this.controllers.l_hip_y.setTarget(hip_lean);
