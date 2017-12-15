@@ -132,9 +132,13 @@ class Skiier {
     this.controller = new SkiierController(this);
   }
 
-  update(dt) {
+  setKeyframes(keyframes) {
+    this.controller.setKeyframes(keyframes);
+  }
+
+  update(time, dt) {
     // Get new control input
-    this.controller.update(dt);
+    this.controller.update(time, dt);
     // Individual joint controllers (these apply the PD/PID torque control)
     for (var jointId in this.jointControllers) {
       this.jointControllers[jointId].update(dt);
@@ -142,23 +146,6 @@ class Skiier {
   }
 
   postUpdate(dt) {
-    // for (var skiId in this.skiis) {
-    //   this.skiis[skiId].postUpdate(dt);
-    // }
-    // var vehicle = this.skiis.l_ski.vehicle;
-    // vehicle.updateWheelTransform(0, true);
-    // var transform = vehicle.getWheelTransformWS(0);
-    // this.bodies.wheeltest.getCenterOfMassTransform().setOrigin(transform.getOrigin());
-    // this.bodies.wheeltest.getCenterOfMassTransform().setBasis(transform.getBasis());
-    // transform = vehicle.getWheelTransformWS(1);
-    // this.bodies.wheeltest1.getCenterOfMassTransform().setOrigin(transform.getOrigin());
-    // this.bodies.wheeltest1.getCenterOfMassTransform().setBasis(transform.getBasis());
-    // transform = vehicle.getWheelTransformWS(2);
-    // this.bodies.wheeltest2.getCenterOfMassTransform().setOrigin(transform.getOrigin());
-    // this.bodies.wheeltest2.getCenterOfMassTransform().setBasis(transform.getBasis());
-    // transform = vehicle.getWheelTransformWS(3);
-    // this.bodies.wheeltest3.getCenterOfMassTransform().setOrigin(transform.getOrigin());
-    // this.bodies.wheeltest3.getCenterOfMassTransform().setBasis(transform.getBasis());
   }
 
   inputControls(controls) {

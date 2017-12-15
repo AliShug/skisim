@@ -1,5 +1,16 @@
 /*jshint esversion:6*/
 
+dat.GUI.prototype.removeFolder = function(name) {
+  var folder = this.__folders[name];
+  if (!folder) {
+    return;
+  }
+  folder.close();
+  this.__ul.removeChild(folder.domElement.parentNode);
+  delete this.__folders[name];
+  this.onResize();
+};
+
 var terrainFile = 'terrain_wide.json';
 var characterColor = 0xa0a0ff;
 var skiisColor = 0xcccccc;
@@ -174,6 +185,7 @@ scene.add(testLight);
 camera.position.set(0.5, 7, -3);
 orbitControls.target.set(0, 6, 0);
 orbitControls.update();
+orbitControls.enableKeys = false;
 var followCamera = true;
 var keyboardState = {};
 
@@ -205,12 +217,16 @@ var controlData = {
   // Knees: 0.4,
   "Side lean": 0.5,
   Plough: 0.5,
+  'Sim speed': 12,
+  'Start pinned': false,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
 gui.add(controlData, 'Drag strength', 0.0, 1000.0).onChange(function () {
   dragControls.strength = controlData['Drag strength'];
 });
+gui.add(controlData, 'Start pinned').onChange(postControlUpdate);
+gui.add(controlData, 'Sim speed').onChange(postControlUpdate);
 gui.add(controlData, 'Squat', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Forward lean', 0.0, 1.0).onChange(postControlUpdate);
 // gui.add(controlData, 'Knees', 0.0, 1.0).onChange(postControlUpdate);
@@ -219,6 +235,56 @@ gui.add(controlData, 'Side lean', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Plough', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Reset');
 gui.add(controlData, 'Follow-camera');
+
+var keyframer = {
+  'Add Keyframe': function () {
+    keyframes.push(new Keyframe(physicsData.TIME, 'none', 0.5));
+    keyframei += 1;
+  },
+  'Register Keyframes': function () {
+    keyframes.sort(function(a, b) {
+      return a.time > b.time;
+    });
+    physicsWorker.postMessage({
+      type: 'keyframes',
+      keyframes: keyframes.map(key => key.asObject()),
+    });
+  }
+};
+
+var keyframes = [];
+var keyframei = 0;
+
+class Keyframe {
+  constructor (time, param, value) {
+    this.param = param;
+    this.value = value;
+    this.name = 'Key '+keyframei;
+    this.folder = keyGui.addFolder(this.name);
+    this.folder.add(this, 'time', 0.15);
+    this.folder.add(this, 'param');
+    this.folder.add(this, 'value', 0.0, 1.0);
+    this.folder.add(this, 'delete');
+    this.time = time;
+  }
+
+  asObject() {
+    return {
+      time: this.time,
+      param: this.param,
+      value: this.value,
+    };
+  }
+
+  delete() {
+    keyframes.splice(keyframes.indexOf(this), 1);
+    keyGui.removeFolder(this.name);
+  }
+}
+
+var keyGui = gui.addFolder('Keyframes');
+gui.add(keyframer, 'Add Keyframe');
+gui.add(keyframer, 'Register Keyframes');
 
 // output gui
 // <div style="position:absolute;z-index:1000;left: 0;top: 0;margin-left: 10px;padding: 5px;font-size: small;">Hello world
@@ -239,6 +305,8 @@ function getControlData() {
     plough: controlData.Plough,
     twist: controlData.Twist,
     keys: keyboardState,
+    speed: controlData['Sim speed'],
+    start_pinned: controlData['Start pinned'],
   };
 }
 
@@ -301,6 +369,7 @@ function stringify(json) {
 var shapes = {};
 var physicsWorker = new Worker('js/physics-worker.js');
 var running = false;
+var physicsData = {TIME: 0};
 physicsWorker.onmessage = function(event) {
   var data = event.data;
   if (data.type === "scene-description") {
@@ -334,6 +403,7 @@ physicsWorker.onmessage = function(event) {
     }
   }
   else if (data.type === "info-readout") {
+    physicsData = data.content;
     var json = stringify(data.content);
     debugReadout.innerHTML = json;
   }

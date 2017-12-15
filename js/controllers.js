@@ -6,29 +6,64 @@ class SkiierController {
     this.controls = {hip_lean: 0.2};
     this.controllers = skiier.jointControllers;
     this.skiis = skiier.skiis;
+    this.keyframes = [];
   }
 
   setInput(controls) {
     this.controls = controls;
   }
 
-  update(dt) {
+  setKeyframes(keyframes) {
+    this.keyframes = keyframes;
+  }
+
+  getKeyedValue(time, param) {
+    var last = {time: 0, value: this.controls[param]};
+    var next = {time: time+30, value: this.controls[param]};
+    var keyed = false;
+    for (var i = 0; i < this.keyframes.length; i++) {
+      var key = this.keyframes[i];
+      if (key.param === param) {
+        if (key.time > last.time && key.time < time) {
+          last = key;
+          keyed = true;
+        }
+        if (key.time < next.time && key.time > time) {
+          next = key;
+          keyed = true;
+        }
+      }
+    }
+    if (keyed) {
+      var range = next.time - last.time;
+      var point = time - last.time;
+      var mix = point/range;
+      return (1-mix)*last.value + mix*next.value;
+    }
+    else {
+      return this.controls[param];
+    }
+  }
+
+  update(time, dt) {
     // Mixing for controls
-    var squat = this.controls.squat;
-    var front_lean = this.controls.front_lean;
-    var side_lean = this.controls.side_lean;
-    var twist = (this.controls.twist - 0.5);
-    var plough = -(this.controls.plough - 0.5);
+    var squat = this.getKeyedValue(time, 'squat');
+    var front_lean = this.getKeyedValue(time, 'front_lean');
+    var side_lean = this.getKeyedValue(time, 'side_lean');
+    var twist = (this.getKeyedValue(time, 'twist') - 0.5);
+    var plough = -(this.getKeyedValue(time, 'plough') - 0.5);
     // keyboard state input
     var keys = this.controls.keys;
     if (32 in keys) { // space
       squat = 1.0;
     }
     if (65 in keys) { // A
-      side_lean -= 0.3;
+      side_lean -= 0.2;
+      twist -= 0.3;
     }
     if (68 in keys) { // D
-      side_lean += 0.3;
+      side_lean += 0.2;
+      twist += 0.3;
     }
     if (87 in keys) { // W
       front_lean += 0.3;
@@ -36,13 +71,25 @@ class SkiierController {
     if (83 in keys) { // S
       front_lean -= 0.3;
     }
+    if (37 in keys) { // left
+      side_lean -= 0.3;
+    }
+    if (39 in keys) { // right
+      side_lean += 0.3;
+    }
+    if (38 in keys) { // up
+      squat -= 0.2;
+    }
+    if (40 in keys) { // down
+      squat += 0.6;
+    }
     // joint control
     var hip_lean = 0.26 + squat*0.75 + (front_lean - 0.5) * 0.3; // forward lean at the hips
     this.controllers.l_hip_y.setTarget(hip_lean);
     this.controllers.r_hip_y.setTarget(hip_lean);
     var knees = 0.25 + 0.55*squat - (front_lean - 0.5) * 0.2; // knee flexion
-    this.controllers.l_knee.setTarget(knees);
-    this.controllers.r_knee.setTarget(knees);
+    this.controllers.l_knee.setTarget(knees - twist*0.2);
+    this.controllers.r_knee.setTarget(knees + twist*0.2);
     var arms_drop = 0.9 - 0.45*squat + (Math.sin(front_lean*Math.PI) - 0.5);
     this.controllers.l_shoulder_y.setTarget(arms_drop);
     this.controllers.r_shoulder_y.setTarget(arms_drop);
@@ -67,8 +114,11 @@ class SkiierController {
     var norm_lean = side_lean-0.5;
     for (var skiId in this.skiis) {
       var ski = this.skiis[skiId];
-      ski.vehicle.setSteeringValue(-twist*0.1-norm_lean*0.1, 0);
-      ski.vehicle.setSteeringValue(-twist*0.1-norm_lean*0.1, 1);
+      var steering = -twist*0.1-norm_lean*0.1;
+      var speed = this.skiier.bodies.gut.getLinearVelocity().length();
+      steering /= Math.max(speed/10, 1);
+      ski.vehicle.setSteeringValue(steering, 0);
+      ski.vehicle.setSteeringValue(steering, 1);
     }
   }
 }

@@ -2,7 +2,7 @@
 
 importScripts('ammo.js');
 
-var solverSteps = 100;
+var solverSteps = 50;
 var physicsDeltaTime = 1/800;
 var physicsStepsPerUpdate = 13;
 // var physicsStepsPerUpdate = 1;
@@ -61,6 +61,7 @@ Ammo().then(function(Ammo) {
   var skiier = null;
   var savedTerrainMesh = null;
   var savedTerrainTransform = null;
+  var keyframes = [];
 
   function resetPhysics() {
     simulationTime = 0.0;
@@ -185,7 +186,7 @@ Ammo().then(function(Ammo) {
   }
 
   function controlUpdate(dt) {
-    skiier.update(dt);
+    skiier.update(simulationTime, dt);
   }
 
   function postUpdate(dt) {
@@ -236,12 +237,15 @@ Ammo().then(function(Ammo) {
         startUp();
       }
       skiier.inputControls(event.data.controls);
+      skiier.setKeyframes(keyframes);
 
       if (interval) clearInterval(interval);
       interval = setInterval(mainLoop, 1000/60);
     }
     else if (data.type === "control-update") {
       skiier.inputControls(data.controls);
+      startPinned = data.controls.start_pinned;
+      physicsStepsPerUpdate = data.controls.speed;
     }
     else if (data.type === "drag-force") {
       if (data.object === null) {
@@ -255,6 +259,11 @@ Ammo().then(function(Ammo) {
         var anchor = new Ammo.btVector3(a.x, a.y, a.z);
         mouseDrag.set(object, point, anchor, data.strength);
       }
+    }
+    else if (data.type === 'keyframes') {
+      keyframes = data.keyframes;
+      skiier.setKeyframes(keyframes);
+      console.log(keyframes);
     }
   };
 });
