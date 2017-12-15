@@ -3,7 +3,7 @@
 class SkiierController {
   constructor(skiier) {
     this.skiier = skiier;
-    this.controls = {};
+    this.controls = {hip_lean: 0.2};
     this.controllers = skiier.jointControllers;
   }
 
@@ -12,22 +12,38 @@ class SkiierController {
   }
 
   update(dt) {
-    this.controllers.l_hip_x.setTarget(controls.l_hip_x);
-    this.controllers.r_hip_x.setTarget(controls.r_hip_x);
-    this.controllers.l_hip_y.setTarget(controls.l_hip_y);
-    this.controllers.r_hip_y.setTarget(controls.r_hip_y);
-    this.controllers.l_knee.setTarget(controls.l_knee);
-    this.controllers.r_knee.setTarget(controls.r_knee);
-    this.controllers.l_ankle.setTarget(controls.l_ankle);
-    this.controllers.r_ankle.setTarget(controls.r_ankle);
-    this.controllers.neck.setTarget(controls.neck);
-    this.controllers.spine_x.setTarget(controls.spine);
-    this.controllers.l_elbow.setTarget(controls.l_elbow);
-    this.controllers.r_elbow.setTarget(controls.r_elbow);
-    this.controllers.l_shoulder_x.setTarget(controls.l_shoulder_x);
-    this.controllers.l_shoulder_y.setTarget(controls.l_shoulder_y);
-    this.controllers.r_shoulder_x.setTarget(controls.r_shoulder_x);
-    this.controllers.r_shoulder_y.setTarget(controls.r_shoulder_y);
+    // Mixing for controls
+    var squat = this.controls.squat;
+    var front_lean = this.controls.front_lean;
+    var side_lean = this.controls.side_lean;
+    var twist = (this.controls.twist - 0.5);
+
+    var hip_lean = 0.26 + squat*0.75 + (front_lean - 0.5) * 0.3; // forward lean at the hips
+    this.controllers.l_hip_y.setTarget(hip_lean);
+    this.controllers.r_hip_y.setTarget(hip_lean);
+    var knees = 0.25 + 0.55*squat - (front_lean - 0.5) * 0.2; // knee flexion
+    this.controllers.l_knee.setTarget(knees);
+    this.controllers.r_knee.setTarget(knees);
+    var arms_drop = 0.9 - 0.45*squat + (Math.sin(front_lean*Math.PI) - 0.5);
+    this.controllers.l_shoulder_y.setTarget(arms_drop);
+    this.controllers.r_shoulder_y.setTarget(arms_drop);
+    var arms_inward = 0.7+0.12*squat;
+    this.controllers.l_shoulder_x.setTarget(arms_inward);
+    this.controllers.r_shoulder_x.setTarget(arms_inward);
+    this.controllers.spine_y.setTarget(side_lean);
+    var hip_twist = (twist*0.2) + 0.5;
+    this.controllers.l_hip_x.setTarget(hip_twist);
+    this.controllers.r_hip_x.setTarget(hip_twist);
+    var ankles = 0.37 - 0.1*squat;
+    this.controllers.l_ankle.setTarget(ankles);
+    this.controllers.r_ankle.setTarget(ankles);
+    var neck = 0.46 - 0.1*squat - 1.4*(front_lean - 0.5);
+    this.controllers.neck.setTarget(neck);
+    var back = 0.1 + front_lean*0.5;
+    var elbows = (Math.sin(front_lean*Math.PI) - 0.5);
+    this.controllers.spine_x.setTarget(back);
+    this.controllers.l_elbow.setTarget(elbows);
+    this.controllers.r_elbow.setTarget(elbows);
   }
 }
 
@@ -86,10 +102,20 @@ class HingeController {
     this.min = min;
     this.max = max;
     this.range = max - min;
-    this.joint.setLimit(min, max, a, b, c);
+    this.joint.setLimit(
+      min-this.range*0.1,
+      max+this.range*0.1,
+      a, b, c
+    );
   }
 
   setTarget(target) {
+    if (target > 1) {
+      target = 1;
+    }
+    else if (target < 0) {
+      target = 0;
+    }
     this.target = target;
   }
 

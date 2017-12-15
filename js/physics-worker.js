@@ -2,13 +2,14 @@
 
 importScripts('ammo.js');
 
-var solverSteps = 20;
+var solverSteps = 100;
 var physicsDeltaTime = 1/800;
 var physicsStepsPerUpdate = 10;
 // var physicsStepsPerUpdate = 1;
 // var physicsDeltaTime = 1/500;
 // var physicsStepsPerUpdate = 7;
 var gravity = -9.81;
+var startPinned = false;
 
 // Ammo must be loaded for any of the rest of this to make sense
 Ammo().then(function(Ammo) {
@@ -122,7 +123,7 @@ Ammo().then(function(Ammo) {
     loadTerrain(terrainMesh, terrainTransform);
 
     skiier = new Skiier(dynamicsWorld, bodies.ground);
-    skiier.initSkiier(defaultSkiier, false);
+    skiier.initSkiier(defaultSkiier, startPinned);
 
     // Register physics objects with the renderer
     postMessage({

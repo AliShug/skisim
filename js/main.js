@@ -1,6 +1,8 @@
 /*jshint esversion:6*/
 
 var terrainFile = 'terrain_smooth_v1.json';
+var characterColor = 0xa0a0ff;
+var skiisColor = 0xcccccc;
 
 class PhysicsDragController {
   constructor(domElement, cameraControls, strength=250.0) {
@@ -183,8 +185,11 @@ var controlData = {
     followCamera = !followCamera;
   },
   "Drag strength": 250,
-  "Forward lean": 0.2,
-  "Stand": 0.2,
+  Squat: 0.1,
+  Twist: 0.5,
+  "Forward lean": 0.6,
+  // Knees: 0.4,
+  "Side lean": 0.5,
   l_shoulder_x: 0.18,
   r_shoulder_x: 0.18,
   l_shoulder_y: 0.8,
@@ -208,15 +213,10 @@ gui.add(controlData, 'Drag strength', 0.0, 1000.0).onChange(function () {
   dragControls.strength = controlData['Drag strength'];
 });
 gui.add(controlData, 'Forward lean', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'Stand', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_shoulder_x', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_shoulder_y', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_shoulder_x', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_shoulder_y', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'l_elbow', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'r_elbow', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'neck', 0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'spine', 0, 1.0).onChange(postControlUpdate);
+// gui.add(controlData, 'Knees', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'Squat', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'Twist', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'Side lean', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'reset');
 gui.add(controlData, 'Follow-camera');
 
@@ -232,6 +232,11 @@ debugReadout.setAttribute(
 
 function getControlData() {
   return {
+    squat: controlData.Squat,
+    front_lean: controlData['Forward lean'],
+    // knees: controlData.Knees,
+    side_lean: controlData['Side lean'],
+    twist: controlData.Twist,
     l_elbow: controlData.l_elbow,
     r_elbow: controlData.r_elbow,
     l_shoulder_x: controlData.l_shoulder_x,
@@ -296,26 +301,11 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-function syntaxHighlight(json) {
+function stringify(json) {
   if (typeof json != 'string') {
     json = JSON.stringify(json, undefined, 2);
   }
   json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  json = json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function(match) {
-    var cls = 'number';
-    if (/^"/.test(match)) {
-      if (/:$/.test(match)) {
-        cls = 'key';
-      } else {
-        cls = 'string';
-      }
-    } else if (/true|false/.test(match)) {
-      cls = 'boolean';
-    } else if (/null/.test(match)) {
-      cls = 'null';
-    }
-    return '<span class="' + cls + '">' + match + '</span>';
-  });
   json = json.replace(/ /g, '&nbsp;');
   return json.replace(/\n/g, '<br/>');
 }
@@ -336,7 +326,14 @@ physicsWorker.onmessage = function(event) {
       var shape = null;
       if (!(id in shapes)) {
         var geometry = new THREE.BoxGeometry(w, h, d);
-        var material = new THREE.MeshStandardMaterial({ color: 0xffa0a0 });
+        var color;
+        if (id.includes('ski')) {
+          color = skiisColor;
+        }
+        else {
+          color = characterColor;
+        }
+        var material = new THREE.MeshStandardMaterial({ color });
         shape = new THREE.Mesh(geometry, material);
         scene.add(shape);
       }
@@ -351,7 +348,7 @@ physicsWorker.onmessage = function(event) {
     }
   }
   else if (data.type === "info-readout") {
-    var json = syntaxHighlight(data.content);
+    var json = stringify(data.content);
     debugReadout.innerHTML = json;
   }
   else {
