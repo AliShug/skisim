@@ -29,12 +29,12 @@ p.armLowerThickness = p.u * 0.35;
 // joint settings
 p.kneeLimits = [0, 0.9*Math.PI];
 p.kneeTorque = 0.9;
-p.kneePid = [2.2, 0, 0.2];
+p.kneePid = [3, 0, 0.2];
 p.ankleLimits = [-Math.PI/2, Math.PI/2];
 p.ankleTorque = 1.5;
 p.anklePid = [5, 0, 0.4];
 p.hipTorques = [0.4, 0.6];
-p.hipPids = [[1.5, 0, 0.2], [2.2, 0, 0.2]];
+p.hipPids = [[1.5, 0, 0.2], [2.8, 0, 0.2]];
 p.hipLimits = [[-Math.PI/4, Math.PI/4], [-0.1*Math.PI, 0.7*Math.PI]];
 p.spineTorques = [0.4, 0.4]; // forward, sideways
 p.spinePids = [[2, 0, 0.3], [1.5, 0, 0.2]];
@@ -70,90 +70,164 @@ class Ski {
       [-1, -1], [1, -1],
       [-1, 1],  [1, 1]
     ];
-    for (var i = 0; i < 4; i++) {
-      var offset = this.constraintOffsets[i];
-      this.createSlidingConstraint(offset[0]*this.xoffset, offset[1]*this.zoffset);
-    }
-
+    // this.contactNormals = [];
+    // for (var i = 0; i < 4; i++) {
+    //   var offset = this.constraintOffsets[i];
+    //   this.createSlidingConstraint(offset[0]*this.xoffset, offset[1]*this.zoffset);
+    //   this.contactNormals[i] = new Ammo.btVector3();
+    // }
+    var rayCaster = new Ammo.btDefaultVehicleRaycaster(this.world);
+    this.tuning = new Ammo.btVehicleTuning();
+    this.vehicle = new Ammo.btRaycastVehicle(this.tuning, this.body, rayCaster);
+    this.vehicle.setCoordinateSystem(0, 1, 2);
+    this.world.addAction(this.vehicle);
+    this.wheels = [];
+    var rad = 0.2;
+    var thick = 0.01;
+    this.createWheel(true, new Ammo.btVector3(-this.xoffset-0.02, 0.15, -this.zoffset-0.1), rad, thick, 0);
+    this.createWheel(true, new Ammo.btVector3(this.xoffset+0.02, 0.15, -this.zoffset-0.1), rad, thick, 1);
+    // this.createWheel(false, new Ammo.btVector3(-this.xoffset-0.02, 0.15, 0), rad, thick, 2);
+    // this.createWheel(false, new Ammo.btVector3(this.xoffset+0.02, 0.15, 0), rad, thick, 3);
+    this.createWheel(false, new Ammo.btVector3(-this.xoffset-0.02, 0.15, this.zoffset+0.1), rad, thick, 2);
+    this.createWheel(false, new Ammo.btVector3(this.xoffset+0.02, 0.15, this.zoffset+0.1), rad, thick, 3);
     this.time = 0.0;
   }
 
-  createSlidingConstraint(x, z) {
-    // generic constraints - responsible for ground contact behaviour
-    var limitTransform = new Ammo.btTransform();
-    limitTransform.setIdentity();
-    limitTransform.setOrigin(new Ammo.btVector3(x, 0, z));
-    var rootTransform = new Ammo.btTransform();
-    rootTransform.setIdentity();
-    var limitConstraint = new Ammo.btGeneric6DofConstraint(
-      this.ground, this.body,
-      rootTransform, limitTransform, true
+  createWheel(isFront, pos, radius, width, index) {
+    var directionCS0 = new Ammo.btVector3(0, -1, 0);
+    var axleCS = new Ammo.btVector3(-1, 0, 0);
+    var suspensionRestLength = 0.0;
+    var suspensionCompression = 180;
+    var suspensionRelaxation = 1.0;
+    var suspensionStiffness = 5000;
+    var rollInfluence = 0.05;
+    var slipFriction = 10;
+    var wheel = this.vehicle.addWheel(
+      pos, directionCS0, axleCS, suspensionRestLength, radius, this.tuning,
+      isFront
     );
-    limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
-    limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
-    limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0.05, 1));
-    limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
-    this.world.addConstraint(limitConstraint);
-    this.constraints.push(limitConstraint);
+    wheel.set_m_suspensionStiffness(suspensionStiffness);
+    wheel.set_m_wheelsDampingRelaxation(suspensionRelaxation);
+    wheel.set_m_wheelsDampingCompression(suspensionCompression);
+    wheel.set_m_frictionSlip(slipFriction);
+    wheel.set_m_rollInfluence(rollInfluence);
+    this.wheels[index] = wheel;
+    Ammo.destroy(axleCS);
+    Ammo.destroy(directionCS0);
   }
 
-  update(dt) {
-    for (var i = 0; i < 4; i++) {
-      var constraint = this.constraints[i];
-      var offset = this.constraintOffsets[i];
-      var start = new Ammo.btVector3(offset[0]*this.xoffset, 0, offset[1]*this.zoffset);
-      // Rays extend diagonally out and down at all 4 corners
-      var end = new Ammo.btVector3(
-        offset[0]*this.xoffset + offset[0]*5,
-        -5,
-        offset[1]*this.zoffset + offset[1]*5
-      );
-      var transform = this.body.getCenterOfMassTransform();
-      start.copy(transform.xform(start));
-      end.copy(transform.xform(end));
-      var result = new Ammo.ClosestRayResultCallback(start, end);
-      this.world.rayTest(start, end, result);
+  // createSlidingConstraint(x, z) {
+  //   // generic constraints - responsible for ground contact behaviour
+  //   var limitTransform = new Ammo.btTransform();
+  //   limitTransform.setIdentity();
+  //   limitTransform.setOrigin(new Ammo.btVector3(x, 0, z));
+  //   var rootTransform = new Ammo.btTransform();
+  //   rootTransform.setIdentity();
+  //   var limitConstraint = new Ammo.btGeneric6DofConstraint(
+  //     this.ground, this.body,
+  //     rootTransform, limitTransform, true
+  //   );
+  //   limitConstraint.setAngularLowerLimit(new Ammo.btVector3(1, 1, 1));
+  //   limitConstraint.setAngularUpperLimit(new Ammo.btVector3(0, 0, 0));
+  //   limitConstraint.setLinearLowerLimit(new Ammo.btVector3(1, 0.05, 1));
+  //   limitConstraint.setLinearUpperLimit(new Ammo.btVector3(0, 1000, 0));
+  //   this.world.addConstraint(limitConstraint);
+  //   limitConstraint.enableFeedback(true);
+  //   this.constraints.push(limitConstraint);
+  // }
 
-      if (result.hasHit()) {
-        // references - can modify in place
-        var frame = constraint.getFrameOffsetA();
-        var basis = frame.getBasis();
-        var hitPoint = result.get_m_hitPointWorld();
-        if (hitPoint.distance(start) > 0.4) {
-          constraint.setEnabled(false);
-        }
-        else {
-          constraint.setEnabled(true);
-        }
-        var n = result.get_m_hitNormalWorld();
-        if (n.y() !== 1) {
-          var y = new Ammo.btVector3(0, 1, 0);
-          var a = n.cross(y).clone();
-          var b = n.cross(a).clone();
-          basis.setValue(b.x(), n.x(), a.x(), b.y(), n.y(), a.y(), b.z(), n.z(), a.z());
-          Ammo.destroy(a);
-          Ammo.destroy(b);
-          Ammo.destroy(y);
-        }
-        else {
-          frame.setIdentity();
-        }
-        frame.setOrigin(hitPoint);
-      }
-      else {
-        constraint.setEnabled(false);
-      }
-      // Woo C++
-      Ammo.destroy(start);
-      Ammo.destroy(end);
-      Ammo.destroy(result);
-    }
+  // update(dt) {
+    // var transform = this.body.getCenterOfMassTransform();
+    //
+    // for (var i = 0; i < 4; i++) {
+    //   var constraint = this.constraints[i];
+    //   var offset = this.constraintOffsets[i];
+    //   var start = new Ammo.btVector3(offset[0]*this.xoffset, 0, offset[1]*this.zoffset);
+    //   // Rays extend diagonally out and down at all 4 corners
+    //   var end = new Ammo.btVector3(
+    //     offset[0]*this.xoffset + offset[0]*5,
+    //     -5,
+    //     offset[1]*this.zoffset + offset[1]*5
+    //   );
+    //   start.copy(transform.xform(start));
+    //   end.copy(transform.xform(end));
+    //   var result = new Ammo.ClosestRayResultCallback(start, end);
+    //   this.world.rayTest(start, end, result);
+    //
+    //   if (result.hasHit()) {
+    //     // references - can modify in place
+    //     var frame = constraint.getFrameOffsetA();
+    //     var basis = frame.getBasis();
+    //     var hitPoint = result.get_m_hitPointWorld();
+    //     if (hitPoint.distance(start) > 0.4) {
+    //       constraint.setEnabled(false);
+    //     }
+    //     else {
+    //       constraint.setEnabled(true);
+    //     }
+    //     var n = result.get_m_hitNormalWorld();
+    //     this.contactNormals[i].copy(n); // store normal for friction calculations
+    //     if (n.y() !== 1) {
+    //       var y = new Ammo.btVector3(0, 1, 0);
+    //       var a = n.cross(y).clone();
+    //       var b = n.cross(a).clone();
+    //       basis.setValue(b.x(), n.x(), a.x(), b.y(), n.y(), a.y(), b.z(), n.z(), a.z());
+    //       Ammo.destroy(a);
+    //       Ammo.destroy(b);
+    //       Ammo.destroy(y);
+    //     }
+    //     else {
+    //       frame.setIdentity();
+    //     }
+    //     frame.setOrigin(hitPoint);
+    //   }
+    //   else {
+    //     constraint.setEnabled(false);
+    //   }
+    //   // Woo C++
+    //   Ammo.destroy(start);
+    //   Ammo.destroy(end);
+    //   Ammo.destroy(result);
+    // }
     // this.time += dt;
     // if (this.time > 1) {
     //   result.get_m_hitPointWorld().prettyPrint();
     //   this.time = 0.0;
     // }
-  }
+  // }
+
+  // postUpdate(dt) {
+  //   var transform = this.body.getCenterOfMassTransform();
+  //   // Check the contact forces and apply corresponding friction forces
+  //   var coeff = 0.2;
+  //   for (var i = 0; i < 4; i++) {
+  //     var constraint = this.constraints[i];
+  //     if (constraint.isEnabled()) {
+  //       var offset = this.constraintOffsets[i];
+  //       var pt = new Ammo.btVector3(offset[0]*this.xoffset, 0, offset[1]*this.zoffset);
+  //       var relPt = transform.xform(pt, true).clone();
+  //       var vel = this.body.getVelocityInLocalPoint(relPt).clone();
+  //       var normal = this.contactNormals[i];
+  //       if (vel.dot(normal) > 0) {
+  //         // A surface-parallel velocity exists
+  //         var contactForce = -constraint.getAppliedImpulse()/dt;
+  //         var surfaceVel = normal.cross(vel).clone();
+  //         surfaceVel.copy(normal.cross(surfaceVel));
+  //         surfaceVel.normalize();
+  //         if (contactForce > 0) {
+  //           var mag = 10*vel.dot(surfaceVel);
+  //           // console.log(mag);
+  //           surfaceVel.op_mul(mag);
+  //           this.body.applyForce(surfaceVel, relPt);
+  //         }
+  //         Ammo.destroy(surfaceVel);
+  //       }
+  //       Ammo.destroy(pt);
+  //       Ammo.destroy(relPt);
+  //       Ammo.destroy(vel);
+  //     }
+  //   }
+  // }
 }
 
 class Skiier {
@@ -179,9 +253,29 @@ class Skiier {
       this.jointControllers[jointId].update(dt);
     }
     // Ski's contact raycasting and constraint/force updates)
-    for (var skiId in this.skiis) {
-      this.skiis[skiId].update(dt);
-    }
+    // for (var skiId in this.skiis) {
+    //   this.skiis[skiId].update(dt);
+    // }
+  }
+
+  postUpdate(dt) {
+    // for (var skiId in this.skiis) {
+    //   this.skiis[skiId].postUpdate(dt);
+    // }
+    // var vehicle = this.skiis.l_ski.vehicle;
+    // vehicle.updateWheelTransform(0, true);
+    // var transform = vehicle.getWheelTransformWS(0);
+    // this.bodies.wheeltest.getCenterOfMassTransform().setOrigin(transform.getOrigin());
+    // this.bodies.wheeltest.getCenterOfMassTransform().setBasis(transform.getBasis());
+    // transform = vehicle.getWheelTransformWS(1);
+    // this.bodies.wheeltest1.getCenterOfMassTransform().setOrigin(transform.getOrigin());
+    // this.bodies.wheeltest1.getCenterOfMassTransform().setBasis(transform.getBasis());
+    // transform = vehicle.getWheelTransformWS(2);
+    // this.bodies.wheeltest2.getCenterOfMassTransform().setOrigin(transform.getOrigin());
+    // this.bodies.wheeltest2.getCenterOfMassTransform().setBasis(transform.getBasis());
+    // transform = vehicle.getWheelTransformWS(3);
+    // this.bodies.wheeltest3.getCenterOfMassTransform().setOrigin(transform.getOrigin());
+    // this.bodies.wheeltest3.getCenterOfMassTransform().setBasis(transform.getBasis());
   }
 
   inputControls(controls) {
@@ -416,11 +510,36 @@ class Skiier {
     this.generateBodies(p);
     this.generateJoints(p);
 
+    // this.createBox({
+    //   id: "wheeltest",
+    //   w: 0.2, d: 0.1, h: 0.2,
+    //   x: 0, y: 0, z: 0,
+    //   collision: 0,
+    // });
+    // this.createBox({
+    //   id: "wheeltest1",
+    //   w: 0.2, d: 0.1, h: 0.2,
+    //   x: 0, y: 0, z: 0,
+    //   collision: 0,
+    // });
+    // this.createBox({
+    //   id: "wheeltest2",
+    //   w: 0.2, d: 0.1, h: 0.2,
+    //   x: 0, y: 0, z: 0,
+    //   collision: 0,
+    // });
+    // this.createBox({
+    //   id: "wheeltest3",
+    //   w: 0.2, d: 0.1, h: 0.2,
+    //   x: 0, y: 0, z: 0,
+    //   collision: 0,
+    // });
+
     // setting mass=0 creates a static body - pins the character in place
     if (pinned) {
       this.setPinned = true;
-      this.bodies.l_foot.makeStatic();
-      this.bodies.r_foot.makeStatic();
+      this.bodies.l_ski.makeStatic();
+      this.bodies.r_ski.makeStatic();
     }
     else {
       this.setPinned = false;

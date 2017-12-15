@@ -9,6 +9,7 @@ var physicsStepsPerUpdate = 10;
 // var physicsDeltaTime = 1/500;
 // var physicsStepsPerUpdate = 7;
 var gravity = -9.81;
+// var gravity = -0.5;
 var startPinned = false;
 
 // Ammo must be loaded for any of the rest of this to make sense
@@ -170,8 +171,9 @@ Ammo().then(function(Ammo) {
 
   function mainLoop() {
     for (var i = 0; i < physicsStepsPerUpdate; i++) {
-      simulate(physicsDeltaTime);
       controlUpdate(physicsDeltaTime);
+      simulate(physicsDeltaTime);
+      postUpdate(physicsDeltaTime);
     }
     updateView();
     updateReadout();
@@ -180,6 +182,10 @@ Ammo().then(function(Ammo) {
 
   function controlUpdate(dt) {
     skiier.update(dt);
+  }
+
+  function postUpdate(dt) {
+    skiier.postUpdate(dt);
     mouseDrag.apply();
   }
 
@@ -202,6 +208,10 @@ Ammo().then(function(Ammo) {
       r_knee: skiier.jointControllers.r_knee.lastState,
       l_ankle: skiier.jointControllers.l_ankle.lastState,
       r_ankle: skiier.jointControllers.r_ankle.lastState,
+      // im0: skiier.skiis.l_ski.constraints[0].getAppliedImpulse()/physicsDeltaTime,
+      // im1: skiier.skiis.l_ski.constraints[1].getAppliedImpulse()/physicsDeltaTime,
+      // im2: skiier.skiis.l_ski.constraints[2].getAppliedImpulse()/physicsDeltaTime,
+      // im3: skiier.skiis.l_ski.constraints[3].getAppliedImpulse()/physicsDeltaTime,
       // x_i: skiier.jointControllers.l_shoulder_x.pid.integral,
       // y_i: skiier.jointControllers.l_shoulder_y.pid.integral,
       // z_i: skiier.jointControllers.l_shoulder_z.pid.integral,

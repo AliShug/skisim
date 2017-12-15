@@ -178,7 +178,7 @@ var followCamera = true;
 
 ///// User interface
 var controlData = {
-  reset: function () {
+  Reset: function () {
     physicsWorker.postMessage({type: "reset", controls: getControlData()});
   },
   "Follow-camera": function () {
@@ -190,34 +190,20 @@ var controlData = {
   "Forward lean": 0.6,
   // Knees: 0.4,
   "Side lean": 0.5,
-  l_shoulder_x: 0.18,
-  r_shoulder_x: 0.18,
-  l_shoulder_y: 0.8,
-  r_shoulder_y: 0.8,
-  l_elbow: 0.1,
-  r_elbow: 0.1,
-  l_hip_x: 0.5,
-  r_hip_x: 0.5,
-  l_hip_y: 0.5,
-  r_hip_y: 0.5,
-  l_knee: 0.4,
-  r_knee: 0.4,
-  l_ankle: 0.37,
-  r_ankle: 0.37,
-  neck: 0.5,
-  spine: 0.5,
+  Plough: 0.5,
 };
 var gui = new dat.GUI();
 // gui.remember(controlData);
 gui.add(controlData, 'Drag strength', 0.0, 1000.0).onChange(function () {
   dragControls.strength = controlData['Drag strength'];
 });
+gui.add(controlData, 'Squat', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Forward lean', 0.0, 1.0).onChange(postControlUpdate);
 // gui.add(controlData, 'Knees', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'Squat', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Twist', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Side lean', 0.0, 1.0).onChange(postControlUpdate);
-gui.add(controlData, 'reset');
+gui.add(controlData, 'Plough', 0.0, 1.0).onChange(postControlUpdate);
+gui.add(controlData, 'Reset');
 gui.add(controlData, 'Follow-camera');
 
 // output gui
@@ -236,23 +222,8 @@ function getControlData() {
     front_lean: controlData['Forward lean'],
     // knees: controlData.Knees,
     side_lean: controlData['Side lean'],
+    plough: controlData.Plough,
     twist: controlData.Twist,
-    l_elbow: controlData.l_elbow,
-    r_elbow: controlData.r_elbow,
-    l_shoulder_x: controlData.l_shoulder_x,
-    l_shoulder_y: controlData.l_shoulder_y,
-    r_shoulder_x: controlData.r_shoulder_x,
-    r_shoulder_y: controlData.r_shoulder_y,
-    l_hip_x: controlData.l_hip_x,
-    l_hip_y: controlData.l_hip_y,
-    r_hip_x: controlData.r_hip_x,
-    r_hip_y: controlData.r_hip_y,
-    l_knee: controlData.l_knee,
-    r_knee: controlData.r_knee,
-    l_ankle: controlData.l_ankle,
-    r_ankle: controlData.r_ankle,
-    neck: controlData.neck,
-    spine: controlData.spine,
   };
 }
 

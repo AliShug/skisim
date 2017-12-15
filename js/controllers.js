@@ -5,6 +5,7 @@ class SkiierController {
     this.skiier = skiier;
     this.controls = {hip_lean: 0.2};
     this.controllers = skiier.jointControllers;
+    this.skiis = skiier.skiis;
   }
 
   setInput(controls) {
@@ -17,7 +18,8 @@ class SkiierController {
     var front_lean = this.controls.front_lean;
     var side_lean = this.controls.side_lean;
     var twist = (this.controls.twist - 0.5);
-
+    var plough = -(this.controls.plough - 0.5);
+    // joint control
     var hip_lean = 0.26 + squat*0.75 + (front_lean - 0.5) * 0.3; // forward lean at the hips
     this.controllers.l_hip_y.setTarget(hip_lean);
     this.controllers.r_hip_y.setTarget(hip_lean);
@@ -31,9 +33,9 @@ class SkiierController {
     this.controllers.l_shoulder_x.setTarget(arms_inward);
     this.controllers.r_shoulder_x.setTarget(arms_inward);
     this.controllers.spine_y.setTarget(side_lean);
-    var hip_twist = (twist*0.2) + 0.5;
-    this.controllers.l_hip_x.setTarget(hip_twist);
-    this.controllers.r_hip_x.setTarget(hip_twist);
+    var hip_twist = (twist*0.5) + 0.5;
+    this.controllers.l_hip_x.setTarget(hip_twist + plough*0.5);
+    this.controllers.r_hip_x.setTarget(hip_twist - plough*0.5);
     var ankles = 0.37 - 0.1*squat;
     this.controllers.l_ankle.setTarget(ankles);
     this.controllers.r_ankle.setTarget(ankles);
@@ -44,6 +46,13 @@ class SkiierController {
     this.controllers.spine_x.setTarget(back);
     this.controllers.l_elbow.setTarget(elbows);
     this.controllers.r_elbow.setTarget(elbows);
+    // cheaty steering control
+    var norm_lean = side_lean-0.5;
+    for (var skiId in this.skiis) {
+      var ski = this.skiis[skiId];
+      ski.vehicle.setSteeringValue(-twist*0.1-norm_lean*0.1, 0);
+      ski.vehicle.setSteeringValue(-twist*0.1-norm_lean*0.1, 1);
+    }
   }
 }
 
