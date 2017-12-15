@@ -371,39 +371,20 @@ class Skiier {
   }
 
   // Returns array of rigid body descriptions to be passed to the render thread
-  initSkiier(p, pinned = false) {
+  initSkiier(pos, p, pinned = false) {
     this.rootTransform.setIdentity();
-    var translation = new Ammo.btVector3(0, 5, -2);
+    var translation = new Ammo.btVector3(pos.x, pos.y, pos.z);
     this.rootTransform.setOrigin(translation);
     Ammo.destroy(translation);
 
     this.generateBodies(p);
     this.generateJoints(p);
 
-    // this.createBox({
-    //   id: "wheeltest",
-    //   w: 0.2, d: 0.1, h: 0.2,
-    //   x: 0, y: 0, z: 0,
-    //   collision: 0,
-    // });
-    // this.createBox({
-    //   id: "wheeltest1",
-    //   w: 0.2, d: 0.1, h: 0.2,
-    //   x: 0, y: 0, z: 0,
-    //   collision: 0,
-    // });
-    // this.createBox({
-    //   id: "wheeltest2",
-    //   w: 0.2, d: 0.1, h: 0.2,
-    //   x: 0, y: 0, z: 0,
-    //   collision: 0,
-    // });
-    // this.createBox({
-    //   id: "wheeltest3",
-    //   w: 0.2, d: 0.1, h: 0.2,
-    //   x: 0, y: 0, z: 0,
-    //   collision: 0,
-    // });
+    var vel = new Ammo.btVector3(0, 0, -pos.speed);
+    for (var id in this.bodies) {
+      var body = this.bodies[id];
+      body.setLinearVelocity(vel);
+    }
 
     // setting mass=0 creates a static body - pins the character in place
     if (pinned) {

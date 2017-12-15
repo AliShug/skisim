@@ -11,6 +11,7 @@ var physicsStepsPerUpdate = 13;
 var gravity = -9.81;
 // var gravity = -0.5;
 var startPinned = false;
+var startPos = {x: 0, y: 5, z: -2, speed: 0};
 
 var simulationTime = 0.0;
 
@@ -128,7 +129,7 @@ Ammo().then(function(Ammo) {
     loadTerrain(terrainMesh, terrainTransform);
 
     skiier = new Skiier(dynamicsWorld, bodies.ground);
-    skiier.initSkiier(defaultSkiier, startPinned);
+    skiier.initSkiier(startPos, defaultSkiier, startPinned);
 
     // Register physics objects with the renderer
     postMessage({
@@ -227,6 +228,13 @@ Ammo().then(function(Ammo) {
 
   var interval = null;
 
+  function inputControls(controls) {
+    skiier.inputControls(controls);
+    startPinned = controls.start_pinned;
+    physicsStepsPerUpdate = controls.speed;
+    startPos = controls.pos;
+  }
+
   onmessage = function(event) {
     var data = event.data;
     if (data.type === "start-up" || data.type === "reset") {
@@ -236,16 +244,14 @@ Ammo().then(function(Ammo) {
       else {
         startUp();
       }
-      skiier.inputControls(event.data.controls);
+      inputControls(data.controls);
       skiier.setKeyframes(keyframes);
 
       if (interval) clearInterval(interval);
       interval = setInterval(mainLoop, 1000/60);
     }
     else if (data.type === "control-update") {
-      skiier.inputControls(data.controls);
-      startPinned = data.controls.start_pinned;
-      physicsStepsPerUpdate = data.controls.speed;
+      inputControls(data.controls);
     }
     else if (data.type === "drag-force") {
       if (data.object === null) {

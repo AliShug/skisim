@@ -220,6 +220,7 @@ var controlData = {
   'Sim speed': 12,
   'Start pinned': false,
 };
+var startPos = {x: 0.01, y: 5.01, z: 0.01, speed: 1.1};
 var gui = new dat.GUI();
 // gui.remember(controlData);
 gui.add(controlData, 'Drag strength', 0.0, 1000.0).onChange(function () {
@@ -235,6 +236,12 @@ gui.add(controlData, 'Side lean', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Plough', 0.0, 1.0).onChange(postControlUpdate);
 gui.add(controlData, 'Reset');
 gui.add(controlData, 'Follow-camera');
+
+var posFolder = gui.addFolder('Start position');
+posFolder.add(startPos, 'x').onChange(postControlUpdate);
+posFolder.add(startPos, 'y').onChange(postControlUpdate);
+posFolder.add(startPos, 'z').onChange(postControlUpdate);
+posFolder.add(startPos, 'speed').onChange(postControlUpdate);
 
 var keyframer = {
   'Add Keyframe': function () {
@@ -261,7 +268,8 @@ class Keyframe {
     this.value = value;
     this.name = 'Key '+keyframei;
     this.folder = keyGui.addFolder(this.name);
-    this.folder.add(this, 'time', 0.15);
+    this.time = 0.15;
+    this.folder.add(this, 'time');
     this.folder.add(this, 'param');
     this.folder.add(this, 'value', 0.0, 1.0);
     this.folder.add(this, 'delete');
@@ -307,6 +315,7 @@ function getControlData() {
     keys: keyboardState,
     speed: controlData['Sim speed'],
     start_pinned: controlData['Start pinned'],
+    pos: startPos,
   };
 }
 
